@@ -1,0 +1,536 @@
+name: Panoptic CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of tests to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - unit
+          - integration
+          - e2e
+          - security
+          - performance
+
+env:
+  GO_VERSION: '1.21'
+  NODE_VERSION: '18'
+
+jobs:
+  # Code Quality and Static Analysis
+  quality-checks:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Run go fmt
+        run: |
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "Code is not formatted properly"
+            gofmt -s -l .
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run staticcheck
+        uses: dominikh/staticcheck-action@v1
+        with:
+          version: "latest"
+
+      - name: Run security scan
+        run: |
+          go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+          gosec ./...
+
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+
+  # Unit Tests
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: quality-checks
+    strategy:
+      matrix:
+        go-version: ['1.20', '1.21', '1.22']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Run unit tests with coverage
+        run: |
+          go test -race -coverprofile=coverage.out -covermode=atomic -v ./internal/... ./cmd/...
+
+      - name: Run unit tests on Windows
+        if: matrix.go-version == '1.21'
+        runs-on: windows-latest
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v4
+          - name: Setup Go ${{ matrix.go-version }}
+            uses: actions/setup-go@v4
+            with:
+              go-version: ${{ matrix.go-version }}
+          - name: Run unit tests on Windows
+            run: |
+              go test -v ./internal/... ./cmd/...
+
+      - name: Upload coverage to Codecov
+        if: matrix.go-version == '1.21'
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
+
+  # Integration Tests
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    services:
+      # Start test services
+      httpbin:
+        image: kennethreitz/httpbin
+        ports:
+          - 8080:80
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser
+
+      - name: Build application
+        run: go build -o panoptic main.go
+
+      - name: Run integration tests
+        env:
+          TEST_HTTPBIN_URL: http://localhost:8080
+        run: |
+          go test -tags=integration -v ./tests/integration/...
+        timeout-minutes: 10
+
+      - name: Upload integration test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: integration-test-logs
+          path: |
+            tests/integration/test-logs/
+            output/
+
+  # E2E Tests
+  e2e-tests:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser xvfb
+
+      - name: Build application
+        run: go build -o panoptic main.go
+
+      - name: Run E2E tests
+        env:
+          DISPLAY: :99
+          CHROME_BIN: /usr/bin/chromium-browser
+        run: |
+          # Start virtual display
+          Xvfb :99 -screen 0 1920x1080x24 &
+          sleep 3
+          
+          # Run E2E tests
+          go test -tags=e2e -v ./tests/e2e/...
+        timeout-minutes: 20
+
+      - name: Upload E2E test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: e2e-test-artifacts
+          path: |
+            tests/e2e/test-results/
+            output/
+
+  # Security Tests
+  security-tests:
+    name: Security Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run security tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          go test -tags=security -v ./tests/security/...
+
+      - name: Run vulnerability scan
+        run: |
+          # Install Trivy
+          sudo apt-get update
+          sudo apt-get install wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install trivy
+          
+          # Scan dependencies
+          go mod vendor
+          trivy fs --format table --exit-code 0 ./vendor
+
+      - name: Run SAST scan
+        uses: github/super-linter@v4
+        env:
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VALIDATE_JSC_PD: false
+          VALIDATE_JAVASCRIPT_ES: false
+          VALIDATE_TYPESCRIPT_ES: false
+
+  # Performance Tests
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Setup Python for performance analysis
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser
+          pip3 install matplotlib seaborn
+
+      - name: Build application
+        run: go build -o panoptic main.go
+
+      - name: Run performance tests
+        run: |
+          chmod +x scripts/performance_test.sh
+          ./scripts/performance_test.sh --quick
+
+      - name: Upload performance results
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-results
+          path: perf_results/
+
+      - name: Performance check
+        run: |
+          if [ -f "perf_results/performance_report.md" ]; then
+            echo "Performance results generated"
+            cat perf_results/performance_report.md
+          fi
+
+  # Build and Package
+  build-and-package:
+    name: Build and Package
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    strategy:
+      matrix:
+        os: [linux, windows, darwin]
+        arch: [amd64, arm64]
+        exclude:
+          - os: windows
+            arch: arm64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Set up cross-compilation
+        run: |
+          case ${{ matrix.os }} in
+            "windows")
+              echo "TARGET_OS=windows" >> $GITHUB_ENV
+              echo "BINARY_EXT=.exe" >> $GITHUB_ENV
+              ;;
+            "darwin")
+              echo "TARGET_OS=darwin" >> $GITHUB_ENV
+              echo "BINARY_EXT=" >> $GITHUB_ENV
+              ;;
+            "linux")
+              echo "TARGET_OS=linux" >> $GITHUB_ENV
+              echo "BINARY_EXT=" >> $GITHUB_ENV
+              ;;
+          esac
+          
+          case ${{ matrix.arch }} in
+            "amd64")
+              echo "TARGET_ARCH=amd64" >> $GITHUB_ENV
+              ;;
+            "arm64")
+              echo "TARGET_ARCH=arm64" >> $GITHUB_ENV
+              ;;
+          esac
+
+      - name: Build binary
+        env:
+          GOOS: ${{ env.TARGET_OS }}
+          GOARCH: ${{ env.TARGET_ARCH }}
+        run: |
+          go build -ldflags="-s -w" -o panoptic${{ env.BINARY_EXT }} main.go
+
+      - name: Create package
+        run: |
+          mkdir -p package
+          cp panoptic${{ env.BINARY_EXT }} package/
+          cp README.md package/
+          cp docs/User_Manual.md package/
+          cp -r examples/ package/ 2>/dev/null || true
+          
+          # Create tarball
+          tar -czf panoptic-${{ env.TARGET_OS }}-${{ env.TARGET_ARCH }}.tar.gz -C package .
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: panoptic-${{ env.TARGET_OS }}-${{ env.TARGET_ARCH }}
+          path: panoptic-${{ env.TARGET_OS }}-${{ env.TARGET_ARCH }}.tar.gz
+
+  # Docker Build
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: build-and-package
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: panoptic/panoptic
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Release
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build-and-package, security-tests, performance-tests]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*.tar.gz
+          draft: false
+          prerelease: ${{ contains(github.ref, '-') }}
+          generate_release_notes: true
+
+  # Documentation
+  documentation:
+    name: Update Documentation
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install documentation dependencies
+        run: |
+          npm install -g @apidevtools/swagger-cli
+          npm install -g @redocly/cli
+
+      - name: Generate API documentation
+        run: |
+          # Generate OpenAPI spec if applicable
+          echo "Documentation generation..."
+
+      - name: Build documentation site
+        run: |
+          mkdir -p docs/build
+          cp docs/*.md docs/build/
+          
+          # Create index
+          cat > docs/build/index.md << 'EOF'
+          # Panoptic Documentation
+          
+          ## User Documentation
+          - [User Manual](User_Manual.md)
+          - [Testing Guide](TESTING.md)
+          - [Coverage Report](COVERAGE_REPORT.md)
+          
+          ## API Documentation
+          - [API Reference](api.md)
+          
+          ## Development
+          - [Contributing Guide](../CONTRIBUTING.md)
+          - [Architecture](ARCHITECTURE.md)
+          EOF
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: docs/build
+          destination_dir: docs
+
+  # Notification
+  notification:
+    name: Notification
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, security-tests]
+    if: always()
+    steps:
+      - name: Notify on success
+        if: ${{ needs.unit-tests.result == 'success' && needs.integration-tests.result == 'success' && needs.security-tests.result == 'success' }}
+        run: |
+          echo "✅ All checks passed successfully!"
+          # Add Slack/Teams notification here if needed
+
+      - name: Notify on failure
+        if: ${{ needs.unit-tests.result == 'failure' || needs.integration-tests.result == 'failure' || needs.security-tests.result == 'failure' }}
+        run: |
+          echo "❌ Some checks failed!"
+          # Add Slack/Teams notification here if needed
+
+  # Cleanup
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [build-and-package, release, documentation]
+    if: always()
+    steps:
+      - name: Clean up old artifacts
+        run: |
+          echo "Cleaning up old artifacts..."
+          # Add cleanup logic here

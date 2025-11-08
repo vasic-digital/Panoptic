@@ -1,0 +1,88 @@
+name: "Web Application Testing"
+output: "./test_results"
+
+apps:
+  - name: "Example Web App"
+    type: "web"
+    url: "https://example.com"
+    timeout: 30
+
+  - name: "Login Page Test"
+    type: "web"
+    url: "https://demo.testfire.net/bank/login.aspx"
+    timeout: 30
+
+  - name: "Mobile App (Android)"
+    type: "mobile"
+    platform: "android"
+    emulator: true
+    device: "emulator-5554"
+    timeout: 60
+
+actions:
+  - name: "navigate_to_home"
+    type: "navigate"
+    url: "https://example.com"
+    screenshot: true
+
+  - name: "wait_for_load"
+    type: "wait"
+    wait_time: 3
+
+  - name: "capture_homepage"
+    type: "screenshot"
+    parameters:
+      filename: "homepage.png"
+
+  - name: "start_recording"
+    type: "record"
+    duration: 30
+    parameters:
+      filename: "interaction.mp4"
+
+  - name: "click_signup"
+    type: "click"
+    selector: "a[href='/signup']"
+    screenshot: true
+
+  - name: "wait_for_signup_page"
+    type: "wait"
+    wait_time: 2
+
+  - name: "fill_username"
+    type: "fill"
+    selector: "input[name='username']"
+    value: "testuser"
+
+  - name: "fill_email"
+    type: "fill"
+    selector: "input[name='email']"
+    value: "test@example.com"
+
+  - name: "fill_password"
+    type: "fill"
+    selector: "input[name='password']"
+    value: "SecurePassword123!"
+
+  - name: "submit_form"
+    type: "submit"
+    selector: "button[type='submit']"
+
+  - name: "wait_for_result"
+    type: "wait"
+    wait_time: 3
+
+  - name: "final_screenshot"
+    type: "screenshot"
+    parameters:
+      filename: "result.png"
+
+settings:
+  screenshot_format: "png"
+  video_format: "mp4"
+  quality: 80
+  headless: false
+  window_width: 1920
+  window_height: 1080
+  enable_metrics: true
+  log_level: "info"
