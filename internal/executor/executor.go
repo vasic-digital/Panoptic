@@ -212,6 +212,38 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 			e.logger.Infof("Recording stopped: %s", filename)
 		}()
 		
+	case "vision_click":
+		// Vision-based element clicking
+		e.logger.Debugf("Vision click action: %+v", action)
+		elemType := ""
+		text := ""
+		if action.Parameters != nil {
+			e.logger.Debugf("Action parameters: %+v", action.Parameters)
+			if t, ok := action.Parameters["type"]; ok {
+				if tStr, ok := t.(string); ok {
+					elemType = tStr
+				}
+			}
+			if txt, ok := action.Parameters["text"]; ok {
+				if txtStr, ok := txt.(string); ok {
+					text = txtStr
+				}
+			}
+		}
+		e.logger.Debugf("Extracted - type: '%s', text: '%s'", elemType, text)
+		
+		if webPlatform, ok := platform.(*platforms.WebPlatform); ok {
+			return webPlatform.VisionClick(elemType, text)
+		}
+		return fmt.Errorf("vision actions only supported on web platform")
+		
+	case "vision_report":
+		// Generate computer vision report
+		if webPlatform, ok := platform.(*platforms.WebPlatform); ok {
+			return webPlatform.GenerateVisionReport(e.outputDir)
+		}
+		return fmt.Errorf("vision report only supported on web platform")
+		
 	default:
 		return fmt.Errorf("unknown action type: %s", action.Type)
 	}

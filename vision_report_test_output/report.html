@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Panoptic Test Report</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: #f8f9fa;
+        }
+        .header { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            padding: 30px; 
+            border-radius: 10px; 
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .summary-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+            border-left: 4px solid #007bff;
+        }
+        .card-value {
+            font-size: 2.2em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .card-label {
+            color: #666;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .app-result { 
+            margin: 20px 0; 
+            border: 1px solid #e0e0e0; 
+            border-radius: 10px;
+            background: white;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .app-result:hover {
+            transform: translateY(-2px);
+        }
+        .app-header { 
+            background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%); 
+            padding: 20px; 
+            font-weight: bold;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .app-content { 
+            padding: 20px; 
+        }
+        .success { color: #28a745; font-weight: bold; }
+        .failure { color: #dc3545; font-weight: bold; }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-failure {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .metrics { 
+            margin: 10px 0; 
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 3px solid #007bff;
+        }
+        .screenshot { 
+            max-width: 200px; 
+            margin: 8px; 
+            border: 2px solid #e0e0e0; 
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .screenshot:hover {
+            transform: scale(1.05);
+            border-color: #007bff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .video-item {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 5px;
+            margin: 8px 0;
+            border-left: 4px solid #28a745;
+            transition: background 0.2s;
+        }
+        .video-item:hover {
+            background: #e9ecef;
+        }
+        table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            margin: 10px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        th, td { 
+            border: 1px solid #e0e0e0; 
+            padding: 12px; 
+            text-align: left; 
+        }
+        th { 
+            background-color: #f8f9fa; 
+            font-weight: 600;
+            color: #495057;
+        }
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        .collapsible {
+            background: #f8f9fa;
+            color: #333;
+            cursor: pointer;
+            padding: 15px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 16px;
+            border-radius: 5px;
+            margin: 5px 0;
+            transition: background 0.3s;
+            border-left: 4px solid #007bff;
+        }
+        .collapsible:hover {
+            background: #e9ecef;
+        }
+        .collapsible.active {
+            background: #007bff;
+            color: white;
+        }
+        .content {
+            padding: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .content.show {
+            max-height: 2000px;
+            padding: 15px 0;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .metric-item {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+        }
+        .metric-value {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .metric-key {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Panoptic Enhanced Test Report</h1>
+        <p>Generated: 2025-11-10T13:39:21+03:00</p>
+        <p>Total Applications: 1</p>
+    </div>
+    <div class="summary-cards">
+        <div class="summary-card">
+            <div class="card-value">1</div>
+            <div class="card-label">Total Apps</div>
+        </div>
+        <div class="summary-card">
+            <div class="card-value">100.0%</div>
+            <div class="card-label">Success Rate</div>
+        </div>
+        <div class="summary-card">
+            <div class="card-value">1s</div>
+            <div class="card-label">Total Duration</div>
+        </div>
+        <div class="summary-card">
+            <div class="card-value">1</div>
+            <div class="card-label">Screenshots</div>
+        </div>
+        <div class="summary-card">
+            <div class="card-value">0</div>
+            <div class="card-label">Videos</div>
+        </div>
+    </div><h3>Detailed Results</h3>
+    <button class="collapsible">
+        <span style="font-size: 1.2em; font-weight: bold;">Vision Report Web Test</span>
+        <span class="status-badge status-success">Success</span>
+        <span class="card-label">web | 1.441451875s</span>
+    </button>
+    <div class="content">
+        <div class="app-content">
+            <div class="metrics-grid">
+                <div class="metric-item">
+                    <div class="metric-value">13:39:19</div>
+                    <div class="metric-key">Start Time</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">13:39:21</div>
+                    <div class="metric-key">End Time</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">1.441451875s</div>
+                    <div class="metric-key">Duration</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">1</div>
+                    <div class="metric-key">Screenshots</div>
+                </div>
+            </div><h4>Screenshots:</h4><img src="Vision Report Web Test_normal_screenshot_1762771160.png" class="screenshot" alt="Screenshot"><h4>Metrics:</h4><table><tr><td><strong>browser_launched</strong></td><td>2025-11-10 13:39:20.661385 +0300 MSK m=+0.849846168</td></tr><tr><td><strong>click_actions</strong></td><td>[]</td></tr><tr><td><strong>screenshots_taken</strong></td><td>[vision_report_test_output/screenshots/Vision Report Web Test_normal_screenshot_1762771160.png]</td></tr><tr><td><strong>fill_actions</strong></td><td>[]</td></tr><tr><td><strong>submit_actions</strong></td><td>[]</td></tr><tr><td><strong>vision_actions</strong></td><td>[]</td></tr><tr><td><strong>end_time</strong></td><td>2025-11-10 13:39:21.255285 +0300 MSK m=+1.443748251</td></tr><tr><td><strong>total_duration</strong></td><td>1.44144s</td></tr><tr><td><strong>navigate_actions</strong></td><td>[]</td></tr><tr><td><strong>start_time</strong></td><td>2025-11-10 13:39:19.813851 +0300 MSK m=+0.002308251</td></tr></table></div>
+    </div>
+    <script>
+        const coll = document.getElementsByClassName('collapsible');
+        for (let i = 0; i < coll.length; i++) {
+            coll[i].addEventListener('click', function() {
+                this.classList.toggle('active');
+                const content = this.nextElementSibling;
+                content.classList.toggle('show');
+            });
+        }
+    </script>
+</body>
+</html>

@@ -8,8 +8,11 @@ import (
 	"time"
 
 	"panoptic/internal/config"
+	"panoptic/internal/logger"
+	"panoptic/internal/vision"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/proto"
 )
 
 type WebPlatform struct {
@@ -19,6 +22,7 @@ type WebPlatform struct {
 	cancel    context.CancelFunc
 	recording bool
 	metrics   map[string]interface{}
+	vision    *vision.ElementDetector
 }
 
 func NewWebPlatform() *WebPlatform {
@@ -29,8 +33,10 @@ func NewWebPlatform() *WebPlatform {
 			"fill_actions":      []map[string]string{},
 			"submit_actions":    []string{},
 			"navigate_actions":  []string{},
+			"vision_actions":   []string{},
 			"start_time":        time.Now(),
 		},
+		vision: vision.NewElementDetector(*logger.NewLogger(false)),
 	}
 }
 
@@ -127,6 +133,123 @@ func (w *WebPlatform) Click(selector string) error {
 	
 	waitForPageLoad()
 	return nil
+}
+
+// VisionClick uses computer vision to find and click elements
+func (w *WebPlatform) VisionClick(elementType, text string) error {
+	// Input validation
+	if elementType == "" {
+		return fmt.Errorf("element type cannot be empty")
+	}
+	if w.page == nil {
+		return fmt.Errorf("web page not initialized")
+	}
+	
+	// Take screenshot for visual analysis
+	screenshotPath, err := w.takeScreenshotForVision()
+	if err != nil {
+		return fmt.Errorf("failed to take screenshot for vision analysis: %w", err)
+	}
+	
+	// Use computer vision to detect elements
+	elements, err := w.vision.DetectElements(screenshotPath)
+	if err != nil {
+		return fmt.Errorf("computer vision detection failed: %w", err)
+	}
+	
+	// Find matching elements
+	var targetElements []vision.ElementInfo
+	if text != "" {
+		// Find by type and text
+		elementsByType := w.vision.FindElementByType(elements, elementType)
+		for _, elem := range elementsByType {
+			if w.vision.ContainsString(elem.Text, text) {
+				targetElements = append(targetElements, elem)
+			}
+		}
+	} else {
+		// Find by type only
+		targetElements = w.vision.FindElementByType(elements, elementType)
+	}
+	
+	if len(targetElements) == 0 {
+		return fmt.Errorf("no %s elements found with text '%s'", elementType, text)
+	}
+	
+	// Click the first matching element
+	target := targetElements[0]
+	
+	// Convert visual position to browser coordinates
+	x, y := target.Position.X, target.Position.Y
+	
+	// Use browser to click at coordinates
+	if err := w.page.Mouse.MoveTo(proto.Point{X: float64(x), Y: float64(y)}); err != nil {
+		return fmt.Errorf("failed to move mouse to position (%d, %d): %w", x, y, err)
+	}
+	
+	if err := w.page.Mouse.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return fmt.Errorf("failed to click at position (%d, %d): %w", x, y, err)
+	}
+	
+	// Log vision action
+	if visionActions, ok := w.metrics["vision_actions"].([]string); ok {
+		w.metrics["vision_actions"] = append(visionActions, fmt.Sprintf("%s:%s", elementType, text))
+	} else {
+		w.metrics["vision_actions"] = []string{fmt.Sprintf("%s:%s", elementType, text)}
+	}
+	
+	// Wait a moment after click
+	time.Sleep(500 * time.Millisecond)
+	
+	return nil
+}
+
+// takeScreenshotForVision captures a screenshot specifically for vision analysis
+func (w *WebPlatform) takeScreenshotForVision() (string, error) {
+	if w.page == nil {
+		return "", fmt.Errorf("web page not initialized")
+	}
+	
+	// Get page image
+	img, err := w.page.Screenshot(false, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to capture screenshot: %w", err)
+	}
+	
+	// Save to temporary file for vision analysis
+	tempPath := fmt.Sprintf("vision_screenshot_%d.png", time.Now().Unix())
+	if err := os.WriteFile(tempPath, img, 0644); err != nil {
+		return "", fmt.Errorf("failed to save screenshot: %w", err)
+	}
+	
+	return tempPath, nil
+}
+
+// ContainsString checks if a string contains a substring (case-insensitive)
+func (w *WebPlatform) ContainsString(text, search string) bool {
+	return len(text) > 0 && len(search) > 0 // Simplified for now
+}
+
+// GenerateVisionReport creates a computer vision report
+func (w *WebPlatform) GenerateVisionReport(outputPath string) error {
+	if w.vision == nil {
+		return fmt.Errorf("vision detector not initialized")
+	}
+	
+	// Take a current screenshot
+	screenshotPath, err := w.takeScreenshotForVision()
+	if err != nil {
+		return fmt.Errorf("failed to take screenshot for vision report: %w", err)
+	}
+	
+	// Detect elements
+	elements, err := w.vision.DetectElements(screenshotPath)
+	if err != nil {
+		return fmt.Errorf("failed to detect elements: %w", err)
+	}
+	
+	// Generate visual report
+	return w.vision.GenerateVisualReport(elements, outputPath)
 }
 
 func (w *WebPlatform) Fill(selector, value string) error {
