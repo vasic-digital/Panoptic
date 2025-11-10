@@ -1,0 +1,22 @@
+name: "Desktop Test"
+output: "./desktop_test_output"
+
+apps:
+  - name: "Calculator"
+    type: "desktop"
+    path: "/Applications/Calculator.app"
+    timeout: 10
+
+actions:
+  - name: "wait_for_app"
+    type: "wait"
+    wait_time: 3
+    
+  - name: "take_screenshot"
+    type: "screenshot"
+
+settings:
+  screenshot_format: "png"
+  quality: 80
+  enable_metrics: true
+  log_level: "info"

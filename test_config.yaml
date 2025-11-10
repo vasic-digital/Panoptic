@@ -1,0 +1,34 @@
+name: "Simple Web Test"
+output: "./test_output"
+
+apps:
+  - name: "Example Website"
+    type: "web"
+    url: "https://example.com"
+    timeout: 30
+
+actions:
+  - name: "navigate_to_site"
+    type: "navigate"
+    value: "https://example.com"
+    
+  - name: "wait_for_load"
+    type: "wait"
+    wait_time: 3
+    
+  - name: "take_screenshot"
+    type: "screenshot"
+    
+  - name: "wait_again"
+    type: "wait"
+    wait_time: 2
+
+settings:
+  screenshot_format: "png"
+  video_format: "mp4"
+  quality: 80
+  headless: true
+  window_width: 1920
+  window_height: 1080
+  enable_metrics: true
+  log_level: "info"
