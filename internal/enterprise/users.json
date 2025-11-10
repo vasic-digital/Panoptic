@@ -1,0 +1,30 @@
+{
+  "testuser": {
+    "id": "user-123",
+    "username": "testuser",
+    "email": "",
+    "first_name": "",
+    "last_name": "",
+    "password_hash": "",
+    "role": "",
+    "team_ids": null,
+    "project_ids": null,
+    "api_keys": null,
+    "permissions": null,
+    "preferences": {
+      "theme": "",
+      "language": "",
+      "timezone": "",
+      "date_format": "",
+      "time_format": "",
+      "page_size": 0,
+      "notifications": false,
+      "email_digest": false
+    },
+    "last_login": "0001-01-01T00:00:00Z",
+    "created_at": "0001-01-01T00:00:00Z",
+    "updated_at": "0001-01-01T00:00:00Z",
+    "active": false,
+    "metadata": null
+  }
+}

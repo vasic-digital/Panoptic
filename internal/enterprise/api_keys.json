@@ -1,0 +1,18 @@
+{
+  "key-123": {
+    "id": "key-123",
+    "user_id": "user-123",
+    "name": "Test Key",
+    "key": "",
+    "secret": "SK_5KASEWT2HOAY71AMRE44NW1LF78VGBX-B-R6WPXSYPWA",
+    "permissions": [
+      "api_key.update"
+    ],
+    "scopes": null,
+    "rate_limit": 0,
+    "enabled": true,
+    "created_at": "0001-01-01T00:00:00Z",
+    "usage_count": 0,
+    "metadata": null
+  }
+}

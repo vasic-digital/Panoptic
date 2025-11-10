@@ -542,7 +542,8 @@ func (am *APIManagement) generateAPIKey() string {
 }
 
 func (am *APIManagement) generateAPISecret() string {
-	return strings.ToUpper(fmt.Sprintf("sk_%s", am.Manager.generateID()[:32]))
+	// Generate a longer secret by combining two IDs
+	return strings.ToUpper(fmt.Sprintf("sk_%s%s", am.Manager.generateID(), am.Manager.generateID()))
 }
 
 func (am *APIManagement) getUsername(userID string) string {
