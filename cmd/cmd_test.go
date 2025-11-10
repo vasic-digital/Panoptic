@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,6 +74,7 @@ apps:
   - name: "Test App"
     type: "web"
     url: "https://httpbin.org/html"
+    timeout: 5
 actions:
   - name: "wait"
     type: "wait"

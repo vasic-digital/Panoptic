@@ -88,7 +88,7 @@ func TestLogger_SetOutputDirectory(t *testing.T) {
 		// Remove ANSI color codes for comparison
 		contentStr := removeANSIColors(string(content))
 		assert.Contains(t, contentStr, testMessage)
-		assert.Contains(t, contentStr, "info")
+		assert.Contains(t, contentStr, "INFO") // Look for uppercase "INFO" instead of "info"
 	})
 }
 
