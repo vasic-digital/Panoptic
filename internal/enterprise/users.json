@@ -7,7 +7,9 @@
     "last_name": "",
     "password_hash": "",
     "role": "",
-    "team_ids": null,
+    "team_ids": [
+      "team-123"
+    ],
     "project_ids": null,
     "api_keys": null,
     "permissions": null,

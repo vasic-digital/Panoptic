@@ -1,19 +1,20 @@
 [
   {
-    "id": "Onx2lGG_GzsSJ5tT_NGq4Q",
-    "timestamp": "2025-11-10T21:35:00.321553+03:00",
-    "user_id": "user-123",
-    "username": "testuser",
-    "action": "api_key.regenerate_secret",
-    "resource": "api_key",
-    "resource_id": "key-123",
+    "id": "FqzflTqCxCpDDcXU5l5Fcw",
+    "timestamp": "2025-11-10T21:46:59.246138+03:00",
+    "user_id": "user-456",
+    "username": "unknown",
+    "action": "team.member.remove",
+    "resource": "team",
+    "resource_id": "team-123",
     "details": {
-      "name": "Test Key"
+      "team_name": "Test Team",
+      "user": "unknown"
     },
     "ip_address": "",
     "user_agent": "",
     "success": true,
-    "severity": "medium",
-    "category": "access"
+    "severity": "low",
+    "category": "data"
   }
 ]

@@ -1,1 +1,16 @@
-null
+{
+  "team-123": {
+    "id": "team-123",
+    "name": "Test Team",
+    "description": "",
+    "lead_id": "user-123",
+    "member_ids": [
+      "user-123"
+    ],
+    "project_ids": null,
+    "created_at": "0001-01-01T00:00:00Z",
+    "updated_at": "2025-11-10T21:46:59.246137+03:00",
+    "active": false,
+    "metadata": null
+  }
+}
