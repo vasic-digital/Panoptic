@@ -338,8 +338,8 @@ func (am *AuditManagement) ExecuteCleanup(ctx context.Context, req ExecuteCleanu
 		Category: "system",
 	})
 
-	am.Logger.Infof("Data cleanup executed: %s (dry_run: %t, duration: %s)", 
-		response.Duration.String(), req.DryRun, req.DryRun)
+	am.Logger.Infof("Data cleanup executed (dry_run: %t, duration: %s)",
+		req.DryRun, response.Duration.String())
 
 	return response, nil
 }
