@@ -20,7 +20,14 @@ type MobilePlatform struct {
 
 func NewMobilePlatform() *MobilePlatform {
 	return &MobilePlatform{
-		metrics: make(map[string]interface{}),
+		metrics: map[string]interface{}{
+			"click_actions":     []string{},
+			"screenshots_taken":  []string{},
+			"fill_actions":      []map[string]string{},
+			"submit_actions":    []string{},
+			"navigate_actions":  []string{},
+			"start_time":        time.Now(),
+		},
 	}
 }
 
@@ -65,7 +72,11 @@ func (m *MobilePlatform) Navigate(url string) error {
 		}
 	}
 	
-	m.metrics["navigate_actions"] = append(m.metrics["navigate_actions"].([]string), url)
+	// Safe slice append
+	if navigateActions, ok := m.metrics["navigate_actions"].([]string); ok {
+		m.metrics["navigate_actions"] = append(navigateActions, url)
+	}
+	
 	waitForPageLoad()
 	return nil
 }
@@ -81,7 +92,11 @@ func (m *MobilePlatform) Click(selector string) error {
 		}
 	}
 	
-	m.metrics["click_actions"] = append(m.metrics["click_actions"].([]string), selector)
+	// Safe slice append
+	if clickActions, ok := m.metrics["click_actions"].([]string); ok {
+		m.metrics["click_actions"] = append(clickActions, selector)
+	}
+	
 	time.Sleep(1 * time.Second)
 	return nil
 }
@@ -96,10 +111,15 @@ func (m *MobilePlatform) Fill(selector, value string) error {
 		}
 	}
 	
-	m.metrics["fill_actions"] = append(m.metrics["fill_actions"].([]map[string]string), map[string]string{
-		"selector": selector,
-		"value":    value,
-	})
+	// Safe slice append
+	if fillActions, ok := m.metrics["fill_actions"].([]map[string]string); ok {
+		newAction := map[string]string{
+			"selector": selector,
+			"value":    value,
+		}
+		m.metrics["fill_actions"] = append(fillActions, newAction)
+	}
+	
 	time.Sleep(500 * time.Millisecond)
 	return nil
 }
@@ -114,7 +134,11 @@ func (m *MobilePlatform) Submit(selector string) error {
 		}
 	}
 	
-	m.metrics["submit_actions"] = append(m.metrics["submit_actions"].([]string), selector)
+	// Safe slice append
+	if submitActions, ok := m.metrics["submit_actions"].([]string); ok {
+		m.metrics["submit_actions"] = append(submitActions, selector)
+	}
+	
 	time.Sleep(1 * time.Second)
 	return nil
 }
@@ -145,7 +169,11 @@ func (m *MobilePlatform) Screenshot(filename string) error {
 		}
 	}
 	
-	m.metrics["screenshots_taken"] = append(m.metrics["screenshots_taken"].([]string), filename)
+	// Safe slice append
+	if screenshotsTaken, ok := m.metrics["screenshots_taken"].([]string); ok {
+		m.metrics["screenshots_taken"] = append(screenshotsTaken, filename)
+	}
+	
 	return nil
 }
 

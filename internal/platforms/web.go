@@ -23,21 +23,35 @@ type WebPlatform struct {
 
 func NewWebPlatform() *WebPlatform {
 	return &WebPlatform{
-		metrics: make(map[string]interface{}),
+		metrics: map[string]interface{}{
+			"click_actions":     []string{},
+			"screenshots_taken":  []string{},
+			"fill_actions":      []map[string]string{},
+			"submit_actions":    []string{},
+			"navigate_actions":  []string{},
+			"start_time":        time.Now(),
+		},
 	}
 }
 
 func (w *WebPlatform) Initialize(app config.AppConfig) error {
+	// Validate input
+	if app.Timeout <= 0 {
+		return fmt.Errorf("timeout must be greater than 0")
+	}
+	
+	// Update start time to actual initialization time
 	w.metrics["start_time"] = time.Now()
 	
-	// Launch browser using rod
+	// Launch browser using rod with error handling
 	browser := rod.New().MustConnect()
-	
 	w.browser = browser
+	
+	// Create page with error handling
 	page := browser.MustPage("")
 	w.page = page
 	
-	// Setup context
+	// Setup context with timeout
 	w.context, w.cancel = context.WithTimeout(context.Background(), time.Duration(app.Timeout)*time.Second)
 	
 	w.metrics["browser_launched"] = time.Now()
@@ -45,6 +59,14 @@ func (w *WebPlatform) Initialize(app config.AppConfig) error {
 }
 
 func (w *WebPlatform) Navigate(url string) error {
+	// Input validation
+	if url == "" {
+		return fmt.Errorf("URL cannot be empty")
+	}
+	if w.page == nil {
+		return fmt.Errorf("web page not initialized")
+	}
+	
 	w.metrics["navigation_start"] = time.Now()
 	
 	if err := w.page.Navigate(url); err != nil {
@@ -54,13 +76,28 @@ func (w *WebPlatform) Navigate(url string) error {
 	waitForPageLoad()
 	w.metrics["navigation_complete"] = time.Now()
 	w.metrics["url"] = url
-	w.metrics["navigate_actions"] = append(w.metrics["navigate_actions"].([]string), url)
+	
+	// Safe slice append
+	if navigateActions, ok := w.metrics["navigate_actions"].([]string); ok {
+		w.metrics["navigate_actions"] = append(navigateActions, url)
+	}
 	
 	return nil
 }
 
 func (w *WebPlatform) Click(selector string) error {
-	w.metrics["click_actions"] = append(w.metrics["click_actions"].([]string), selector)
+	// Input validation
+	if selector == "" {
+		return fmt.Errorf("selector cannot be empty")
+	}
+	if w.page == nil {
+		return fmt.Errorf("web page not initialized")
+	}
+	
+	// Safe slice append
+	if clickActions, ok := w.metrics["click_actions"].([]string); ok {
+		w.metrics["click_actions"] = append(clickActions, selector)
+	}
 	
 	element, err := w.page.Element(selector)
 	if err != nil {
@@ -76,6 +113,17 @@ func (w *WebPlatform) Click(selector string) error {
 }
 
 func (w *WebPlatform) Fill(selector, value string) error {
+	// Input validation
+	if selector == "" {
+		return fmt.Errorf("selector cannot be empty")
+	}
+	if value == "" {
+		return fmt.Errorf("value cannot be empty")
+	}
+	if w.page == nil {
+		return fmt.Errorf("web page not initialized")
+	}
+	
 	element, err := w.page.Element(selector)
 	if err != nil {
 		return fmt.Errorf("failed to find element %s: %w", selector, err)
@@ -85,15 +133,23 @@ func (w *WebPlatform) Fill(selector, value string) error {
 		return fmt.Errorf("failed to fill element %s: %w", selector, err)
 	}
 	
-	w.metrics["fill_actions"] = append(w.metrics["fill_actions"].([]map[string]string), map[string]string{
-		"selector": selector,
-		"value":    value,
-	})
+	// Safe slice append
+	if fillActions, ok := w.metrics["fill_actions"].([]map[string]string); ok {
+		newAction := map[string]string{
+			"selector": selector,
+			"value":    value,
+		}
+		w.metrics["fill_actions"] = append(fillActions, newAction)
+	}
 	
 	return nil
 }
 
 func (w *WebPlatform) Submit(selector string) error {
+	if w.page == nil {
+		return fmt.Errorf("web page not initialized")
+	}
+	
 	// Find the form or use click on submit button
 	if selector == "" {
 		// Try to find submit button
@@ -115,7 +171,12 @@ func (w *WebPlatform) Submit(selector string) error {
 	}
 	
 	waitForPageLoad()
-	w.metrics["submit_actions"] = append(w.metrics["submit_actions"].([]string), selector)
+	
+	// Safe slice append
+	if submitActions, ok := w.metrics["submit_actions"].([]string); ok {
+		w.metrics["submit_actions"] = append(submitActions, selector)
+	}
+	
 	return nil
 }
 
@@ -125,11 +186,19 @@ func (w *WebPlatform) Wait(duration int) error {
 }
 
 func (w *WebPlatform) Screenshot(filename string) error {
+	// Input validation
+	if filename == "" {
+		return fmt.Errorf("filename cannot be empty")
+	}
+	if w.page == nil {
+		return fmt.Errorf("web page not initialized")
+	}
+	
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return fmt.Errorf("failed to create screenshot directory: %w", err)
 	}
 	
- screenshotData, err := w.page.Screenshot(true, nil)
+	screenshotData, err := w.page.Screenshot(true, nil)
 	if err != nil {
 		return fmt.Errorf("failed to capture screenshot: %w", err)
 	}
@@ -138,7 +207,11 @@ func (w *WebPlatform) Screenshot(filename string) error {
 		return fmt.Errorf("failed to save screenshot: %w", err)
 	}
 	
-	w.metrics["screenshots_taken"] = append(w.metrics["screenshots_taken"].([]string), filename)
+	// Safe slice append
+	if screenshotsTaken, ok := w.metrics["screenshots_taken"].([]string); ok {
+		w.metrics["screenshots_taken"] = append(screenshotsTaken, filename)
+	}
+	
 	return nil
 }
 

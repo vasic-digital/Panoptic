@@ -44,12 +44,16 @@ func NewExecutor(cfg *config.Config, outputDir string, log *logger.Logger) *Exec
 
 func (e *Executor) Run() error {
 	e.logger.Info("Starting execution")
-	e.logger.SetOutputDirectory(e.outputDir)
+	// e.logger.SetOutputDirectory(e.outputDir)  // Temporarily disabled
+	
+	e.logger.Info("Validating configuration...")
 	
 	// Validate configuration
 	if err := e.config.Validate(); err != nil {
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
+	
+	e.logger.Info("Configuration validated, starting app processing...")
 	
 	// Execute tests for each application
 	for _, app := range e.config.Apps {
@@ -57,6 +61,8 @@ func (e *Executor) Run() error {
 		
 		result := e.executeApp(app)
 		e.results = append(e.results, result)
+		
+		e.logger.Infof("Application processing completed for %s", app.Name)
 		
 		if result.Success {
 			e.logger.Infof("Successfully completed app: %s", app.Name)
@@ -66,6 +72,7 @@ func (e *Executor) Run() error {
 	}
 	
 	e.logger.Info("Execution completed")
+	e.logger.Info("Generating report...")
 	return nil
 }
 
@@ -74,7 +81,7 @@ func (e *Executor) executeApp(app config.AppConfig) TestResult {
 		AppName:     app.Name,
 		AppType:     app.Type,
 		StartTime:   time.Now(),
-		Screenshots: make([]string, 0),
+		Screenshots:  make([]string, 0),
 		Videos:      make([]string, 0),
 		Metrics:     make(map[string]interface{}),
 		Success:     false,
@@ -125,6 +132,8 @@ func (e *Executor) executeApp(app config.AppConfig) TestResult {
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)
 	result.Success = true
+	
+	e.logger.Infof("executeApp completed successfully for %s", app.Name)
 	
 	return result
 }

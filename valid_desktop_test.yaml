@@ -1,10 +1,10 @@
-name: "Desktop Test"
-output: "./desktop_test_output"
+name: "Valid Desktop Test"
+output: "./valid_desktop_test_output"
 
 apps:
-  - name: "Calculator"
+  - name: "Chrome"
     type: "desktop"
-    path: "/Applications/Calculator.app"
+    path: "/Applications/Google Chrome.app"
     timeout: 10
 
 actions:

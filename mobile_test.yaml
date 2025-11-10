@@ -1,14 +1,16 @@
-name: "Desktop Test"
-output: "./desktop_test_output"
+name: "Mobile Test"
+output: "./mobile_test_output"
 
 apps:
-  - name: "Calculator"
-    type: "desktop"
-    path: "/Applications/Calculator.app"
+  - name: "Android Test"
+    type: "mobile"
+    platform: "android"
+    emulator: true
+    device: "emulator-5554"
     timeout: 10
 
 actions:
-  - name: "wait_for_app"
+  - name: "wait_for_device"
     type: "wait"
     wait_time: 2
     

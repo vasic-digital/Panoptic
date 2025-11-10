@@ -20,7 +20,14 @@ type DesktopPlatform struct {
 
 func NewDesktopPlatform() *DesktopPlatform {
 	return &DesktopPlatform{
-		metrics: make(map[string]interface{}),
+		metrics: map[string]interface{}{
+			"click_actions":     []string{},
+			"screenshots_taken":  []string{},
+			"fill_actions":      []map[string]string{},
+			"submit_actions":    []string{},
+			"navigate_actions":  []string{},
+			"start_time":        time.Now(),
+		},
 	}
 }
 
@@ -38,33 +45,66 @@ func (d *DesktopPlatform) Initialize(app config.AppConfig) error {
 }
 
 func (d *DesktopPlatform) Navigate(url string) error {
+	// Input validation
+	if url == "" {
+		return fmt.Errorf("url cannot be empty")
+	}
+	
 	// For desktop apps, navigate might mean opening a specific view or menu
 	// This is a placeholder implementation
-	d.metrics["navigate_actions"] = append(d.metrics["navigate_actions"].([]string), url)
+	if navigateActions, ok := d.metrics["navigate_actions"].([]string); ok {
+		d.metrics["navigate_actions"] = append(navigateActions, url)
+	}
 	return nil
 }
 
 func (d *DesktopPlatform) Click(selector string) error {
+	// Input validation
+	if selector == "" {
+		return fmt.Errorf("selector cannot be empty")
+	}
+	
+	// Safe slice append
+	if clickActions, ok := d.metrics["click_actions"].([]string); ok {
+		d.metrics["click_actions"] = append(clickActions, selector)
+	}
+	
 	// This would require platform-specific automation (e.g., AppleScript on macOS, AutoHotkey on Windows)
 	// For now, this is a placeholder
-	d.metrics["click_actions"] = append(d.metrics["click_actions"].([]string), selector)
 	time.Sleep(1 * time.Second) // Simulate click action
 	return nil
 }
 
 func (d *DesktopPlatform) Fill(selector, value string) error {
+	// Input validation
+	if selector == "" {
+		return fmt.Errorf("selector cannot be empty")
+	}
+	if value == "" {
+		return fmt.Errorf("value cannot be empty")
+	}
+	
+	// Safe slice append
+	if fillActions, ok := d.metrics["fill_actions"].([]map[string]string); ok {
+		newAction := map[string]string{
+			"selector": selector,
+			"value":    value,
+		}
+		d.metrics["fill_actions"] = append(fillActions, newAction)
+	}
+	
 	// Platform-specific form filling implementation
-	d.metrics["fill_actions"] = append(d.metrics["fill_actions"].([]map[string]string), map[string]string{
-		"selector": selector,
-		"value":    value,
-	})
 	time.Sleep(500 * time.Millisecond) // Simulate typing
 	return nil
 }
 
 func (d *DesktopPlatform) Submit(selector string) error {
+	// Safe slice append
+	if submitActions, ok := d.metrics["submit_actions"].([]string); ok {
+		d.metrics["submit_actions"] = append(submitActions, selector)
+	}
+	
 	// Platform-specific form submission
-	d.metrics["submit_actions"] = append(d.metrics["submit_actions"].([]string), selector)
 	time.Sleep(1 * time.Second) // Simulate submission
 	return nil
 }
@@ -75,6 +115,11 @@ func (d *DesktopPlatform) Wait(duration int) error {
 }
 
 func (d *DesktopPlatform) Screenshot(filename string) error {
+	// Input validation
+	if filename == "" {
+		return fmt.Errorf("filename cannot be empty")
+	}
+	
 	// Platform-specific screenshot implementation
 	// macOS: screencapture, Windows: screenshot utilities, Linux: import (ImageMagick)
 	var cmd *exec.Cmd
@@ -93,7 +138,11 @@ func (d *DesktopPlatform) Screenshot(filename string) error {
 		return fmt.Errorf("failed to capture screenshot: %w", err)
 	}
 	
-	d.metrics["screenshots_taken"] = append(d.metrics["screenshots_taken"].([]string), filename)
+	// Safe slice append
+	if screenshotsTaken, ok := d.metrics["screenshots_taken"].([]string); ok {
+		d.metrics["screenshots_taken"] = append(screenshotsTaken, filename)
+	}
+	
 	return nil
 }
 
