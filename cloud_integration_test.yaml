@@ -1,0 +1,78 @@
+name: "Cloud Integration Test"
+output: "./cloud_integration_test_output"
+
+apps:
+  - name: "Cloud Sync Test"
+    type: "web"
+    url: "https://example.com"
+    timeout: 15
+
+actions:
+  - name: "navigate_to_page"
+    type: "navigate"
+    value: "https://example.com"
+    
+  - name: "wait_for_load"
+    type: "wait"
+    wait_time: 3
+    
+  - name: "take_screenshot"
+    type: "screenshot"
+    
+  - name: "wait_after_screenshot"
+    type: "wait"
+    wait_time: 2
+    
+  - name: "cloud_sync"
+    type: "cloud_sync"
+    
+  - name: "cloud_analytics"
+    type: "cloud_analytics"
+
+settings:
+  screenshot_format: "png"
+  quality: 90
+  enable_metrics: true
+  log_level: "info"
+  
+  # Cloud Integration Settings
+  cloud:
+    provider: "local"  # aws, gcp, azure, local
+    bucket: "./cloud_storage"  # S3 bucket, GCS bucket, Azure container, or local path
+    region: "us-east-1"  # AWS region or GCP project ID
+    access_key: ""  # AWS access key, GCP JSON key path, or Azure account name
+    secret_key: ""  # AWS secret key, or Azure account key
+    endpoint: "http://localhost:8080"  # Custom endpoint or CDN URL
+    enable_sync: true
+    sync_interval: 5  # minutes
+    enable_cdn: true
+    cdn_endpoint: "http://cdn.example.com"
+    compression: true
+    encryption: false
+    
+    retention_policy:
+      enabled: true
+      days: 30
+      max_size_gb: 10
+      auto_cleanup: true
+      
+    backup_locations:
+      - "./backup_storage"
+      - "./secondary_backup"
+      
+    enable_distributed: true
+    distributed_nodes:
+      - id: "node-1"
+        name: "US-East Node"
+        location: "us-east-1"
+        capacity: "high"
+        endpoint: "https://node1.example.com/api"
+        api_key: "test-api-key-1"
+        priority: 1
+      - id: "node-2"
+        name: "Europe-West Node"
+        location: "eu-west-1"
+        capacity: "medium"
+        endpoint: "https://node2.example.com/api"
+        api_key: "test-api-key-2"
+        priority: 2

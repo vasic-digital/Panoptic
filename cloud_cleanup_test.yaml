@@ -1,0 +1,55 @@
+name: "Cloud Cleanup Test"
+output: "./cloud_cleanup_test_output"
+
+apps:
+  - name: "Cleanup Test App"
+    type: "web"
+    url: "https://example.com"
+    timeout: 15
+
+actions:
+  - name: "navigate_to_page"
+    type: "navigate"
+    value: "https://example.com"
+    
+  - name: "wait_for_load"
+    type: "wait"
+    wait_time: 3
+    
+  - name: "take_screenshot"
+    type: "screenshot"
+    
+  - name: "wait_after_screenshot"
+    type: "wait"
+    wait_time: 2
+    
+  - name: "cloud_sync"
+    type: "cloud_sync"
+    
+  - name: "cloud_cleanup"
+    type: "cloud_cleanup"
+
+settings:
+  screenshot_format: "png"
+  quality: 90
+  enable_metrics: true
+  log_level: "info"
+  
+  # Cloud Integration Settings
+  cloud:
+    provider: "local"
+    bucket: "./cleanup_cloud_storage"
+    region: "us-east-1"
+    endpoint: "http://localhost:8080"
+    enable_sync: true
+    sync_interval: 5
+    enable_cdn: true
+    cdn_endpoint: "http://cdn.example.com"
+    compression: true
+    encryption: false
+    
+    retention_policy:
+      enabled: true
+      days: 0  # Cleanup immediately for test
+      max_size_gb: 10
+      auto_cleanup: true

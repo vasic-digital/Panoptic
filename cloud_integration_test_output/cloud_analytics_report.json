@@ -1,0 +1,24 @@
+{
+  "generated_at": "2025-11-10T15:12:29.093185+03:00",
+  "provider": "local",
+  "region": "us-east-1",
+  "bucket": "./cloud_storage",
+  "total_tests": 0,
+  "successful_tests": 0,
+  "success_rate": 0,
+  "storage_stats": {
+    "total_files": 1,
+    "total_size": 20094,
+    "total_size_gb": 0.000018713995814323425,
+    "file_type_counts": {
+      ".png": 1
+    },
+    "average_file_size": 20094,
+    "largest_file": "Cloud Sync Test_take_screenshot_1762776747.png",
+    "oldest_file": "Cloud Sync Test_take_screenshot_1762776747.png",
+    "newest_file": "Cloud Sync Test_take_screenshot_1762776747.png"
+  },
+  "recommendations": [
+    "Increase test frequency for better analytics"
+  ]
+}

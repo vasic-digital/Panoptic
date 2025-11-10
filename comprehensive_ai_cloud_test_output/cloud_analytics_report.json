@@ -1,0 +1,25 @@
+{
+  "generated_at": "2025-11-10T15:21:18.925423+03:00",
+  "provider": "local",
+  "region": "us-east-1",
+  "bucket": "./comprehensive_ai_cloud_storage",
+  "total_tests": 0,
+  "successful_tests": 0,
+  "success_rate": 0,
+  "storage_stats": {
+    "total_files": 2,
+    "total_size": 21735,
+    "total_size_gb": 0.000020242296159267426,
+    "file_type_counts": {
+      ".md": 1,
+      ".png": 1
+    },
+    "average_file_size": 10867.5,
+    "largest_file": "vision_analysis_1762777271.png",
+    "oldest_file": "ai_enhanced_testing_report.md",
+    "newest_file": "vision_analysis_1762777271.png"
+  },
+  "recommendations": [
+    "Increase test frequency for better analytics"
+  ]
+}

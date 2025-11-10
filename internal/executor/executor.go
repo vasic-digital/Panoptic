@@ -1,12 +1,15 @@
 package executor
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
 	"panoptic/internal/ai"
+	"panoptic/internal/cloud"
 	"panoptic/internal/config"
 	"panoptic/internal/logger"
 	"panoptic/internal/platforms"
@@ -14,14 +17,16 @@ import (
 )
 
 type Executor struct {
-	config     *config.Config
-	outputDir  string
-	logger     *logger.Logger
-	factory    *platforms.PlatformFactory
-	results    []TestResult
-	testGen    *ai.TestGenerator
-	errorDet   *ai.ErrorDetector
-	aiTester   *ai.AIEnhancedTester
+	config      *config.Config
+	outputDir   string
+	logger      *logger.Logger
+	factory     *platforms.PlatformFactory
+	results     []TestResult
+	testGen     *ai.TestGenerator
+	errorDet    *ai.ErrorDetector
+	aiTester    *ai.AIEnhancedTester
+	cloudManager *cloud.CloudManager
+	cloudAnalytics *cloud.CloudAnalytics
 }
 
 type TestResult struct {
@@ -38,14 +43,80 @@ type TestResult struct {
 }
 
 func NewExecutor(cfg *config.Config, outputDir string, log *logger.Logger) *Executor {
-	return &Executor{
-		config:    cfg,
-		outputDir: outputDir,
-		logger:    log,
-		factory:   platforms.NewPlatformFactory(),
-		results:   make([]TestResult, 0),
-		aiTester:  ai.NewAIEnhancedTester(*log),
+	cloudManager := cloud.NewCloudManager(*log)
+	cloudAnalytics := cloud.NewCloudAnalytics(*log, cloudManager)
+	
+	executor := &Executor{
+		config:        cfg,
+		outputDir:     outputDir,
+		logger:        log,
+		factory:       platforms.NewPlatformFactory(),
+		results:       make([]TestResult, 0),
+		aiTester:      ai.NewAIEnhancedTester(*log),
+		cloudManager:  cloudManager,
+		cloudAnalytics: cloudAnalytics,
 	}
+	
+	// Configure cloud manager early if cloud settings exist
+	if cfg.Settings.Cloud != nil {
+		// Convert map to CloudConfig
+		cloudConfig := cloud.CloudConfig{
+			Provider: getStringFromMap(cfg.Settings.Cloud, "provider"),
+			Bucket:    getStringFromMap(cfg.Settings.Cloud, "bucket"),
+			Region:    getStringFromMap(cfg.Settings.Cloud, "region"),
+			AccessKey: getStringFromMap(cfg.Settings.Cloud, "access_key"),
+			SecretKey: getStringFromMap(cfg.Settings.Cloud, "secret_key"),
+			Endpoint:  getStringFromMap(cfg.Settings.Cloud, "endpoint"),
+			EnableSync:        getBoolFromMap(cfg.Settings.Cloud, "enable_sync"),
+			SyncInterval:      getIntFromMap(cfg.Settings.Cloud, "sync_interval"),
+			EnableCDN:        getBoolFromMap(cfg.Settings.Cloud, "enable_cdn"),
+			CDNEndpoint:       getStringFromMap(cfg.Settings.Cloud, "cdn_endpoint"),
+			Compression:      getBoolFromMap(cfg.Settings.Cloud, "compression"),
+			Encryption:       getBoolFromMap(cfg.Settings.Cloud, "encryption"),
+			EnableDistributed: getBoolFromMap(cfg.Settings.Cloud, "enable_distributed"),
+		}
+		
+		// Handle retention policy
+		if retentionMap, ok := cfg.Settings.Cloud["retention_policy"].(map[string]interface{}); ok {
+			cloudConfig.RetentionPolicy = cloud.RetentionPolicy{
+				Enabled:     getBoolFromMap(retentionMap, "enabled"),
+				Days:        getIntFromMap(retentionMap, "days"),
+				MaxSizeGB:   getIntFromMap(retentionMap, "max_size_gb"),
+				AutoCleanup: getBoolFromMap(retentionMap, "auto_cleanup"),
+			}
+		}
+		
+		// Handle backup locations
+		if backupLocations, ok := cfg.Settings.Cloud["backup_locations"].([]interface{}); ok {
+			for _, location := range backupLocations {
+				if locationStr, ok := location.(string); ok {
+					cloudConfig.BackupLocations = append(cloudConfig.BackupLocations, locationStr)
+				}
+			}
+		}
+		
+		// Handle distributed nodes
+		if nodesInterface, ok := cfg.Settings.Cloud["distributed_nodes"].([]interface{}); ok {
+			for _, node := range nodesInterface {
+				if nodeMap, ok := node.(map[string]interface{}); ok {
+					node := cloud.DistributedNode{
+						ID:       getStringFromMap(nodeMap, "id"),
+						Name:     getStringFromMap(nodeMap, "name"),
+						Location: getStringFromMap(nodeMap, "location"),
+						Capacity: getStringFromMap(nodeMap, "capacity"),
+						Endpoint: getStringFromMap(nodeMap, "endpoint"),
+						APIKey:   getStringFromMap(nodeMap, "api_key"),
+						Priority: getIntFromMap(nodeMap, "priority"),
+					}
+					cloudConfig.DistributedNodes = append(cloudConfig.DistributedNodes, node)
+				}
+			}
+		}
+		
+		cloudManager.Configure(cloudConfig)
+	}
+	
+	return executor
 }
 
 func (e *Executor) Run() error {
@@ -267,6 +338,22 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 	case "ai_enhanced_testing":
 		// Execute AI-enhanced testing
 		return e.executeAIEnhancedTesting(platform, app)
+		
+	case "cloud_sync":
+		// Sync test results to cloud storage
+		return e.executeCloudSync(app)
+		
+	case "cloud_analytics":
+		// Generate cloud analytics report
+		return e.executeCloudAnalytics(app)
+		
+	case "distributed_test":
+		// Execute distributed cloud test
+		return e.executeDistributedCloudTest(app, action)
+		
+	case "cloud_cleanup":
+		// Cleanup old cloud files
+		return e.executeCloudCleanup(app)
 		
 	default:
 		return fmt.Errorf("unknown action type: %s", action.Type)
@@ -804,6 +891,294 @@ func (e *Executor) executeAIEnhancedTesting(platform platforms.Platform, app con
 		len(result.VisualElements), len(result.GeneratedTests), len(result.Enhancements))
 	
 	return nil
+}
+
+// executeCloudSync executes cloud synchronization
+func (e *Executor) executeCloudSync(app config.AppConfig) error {
+	e.logger.Info("Starting cloud synchronization...")
+	
+	// Configure cloud manager if not already done
+	if e.config.Settings.Cloud != nil && !e.cloudManager.Enabled {
+		// Convert map to CloudConfig
+		cloudConfig := cloud.CloudConfig{
+			Provider: getStringFromMap(e.config.Settings.Cloud, "provider"),
+			Bucket:    getStringFromMap(e.config.Settings.Cloud, "bucket"),
+			Region:    getStringFromMap(e.config.Settings.Cloud, "region"),
+			AccessKey: getStringFromMap(e.config.Settings.Cloud, "access_key"),
+			SecretKey: getStringFromMap(e.config.Settings.Cloud, "secret_key"),
+			Endpoint:  getStringFromMap(e.config.Settings.Cloud, "endpoint"),
+			EnableSync:        getBoolFromMap(e.config.Settings.Cloud, "enable_sync"),
+			SyncInterval:      getIntFromMap(e.config.Settings.Cloud, "sync_interval"),
+			EnableCDN:        getBoolFromMap(e.config.Settings.Cloud, "enable_cdn"),
+			CDNEndpoint:       getStringFromMap(e.config.Settings.Cloud, "cdn_endpoint"),
+			Compression:      getBoolFromMap(e.config.Settings.Cloud, "compression"),
+			Encryption:       getBoolFromMap(e.config.Settings.Cloud, "encryption"),
+			EnableDistributed: getBoolFromMap(e.config.Settings.Cloud, "enable_distributed"),
+		}
+		
+		// Handle retention policy
+		if retentionMap, ok := e.config.Settings.Cloud["retention_policy"].(map[string]interface{}); ok {
+			cloudConfig.RetentionPolicy = cloud.RetentionPolicy{
+				Enabled:     getBoolFromMap(retentionMap, "enabled"),
+				Days:        getIntFromMap(retentionMap, "days"),
+				MaxSizeGB:   getIntFromMap(retentionMap, "max_size_gb"),
+				AutoCleanup: getBoolFromMap(retentionMap, "auto_cleanup"),
+			}
+		}
+		
+		// Handle backup locations
+		if backupLocations, ok := e.config.Settings.Cloud["backup_locations"].([]interface{}); ok {
+			for _, location := range backupLocations {
+				if locationStr, ok := location.(string); ok {
+					cloudConfig.BackupLocations = append(cloudConfig.BackupLocations, locationStr)
+				}
+			}
+		}
+		
+		// Handle distributed nodes
+		if nodesInterface, ok := e.config.Settings.Cloud["distributed_nodes"].([]interface{}); ok {
+			for _, node := range nodesInterface {
+				if nodeMap, ok := node.(map[string]interface{}); ok {
+					node := cloud.DistributedNode{
+						ID:       getStringFromMap(nodeMap, "id"),
+						Name:     getStringFromMap(nodeMap, "name"),
+						Location: getStringFromMap(nodeMap, "location"),
+						Capacity: getStringFromMap(nodeMap, "capacity"),
+						Endpoint: getStringFromMap(nodeMap, "endpoint"),
+						APIKey:   getStringFromMap(nodeMap, "api_key"),
+						Priority: getIntFromMap(nodeMap, "priority"),
+					}
+					cloudConfig.DistributedNodes = append(cloudConfig.DistributedNodes, node)
+				}
+			}
+		}
+		
+		if err := e.cloudManager.Configure(cloudConfig); err != nil {
+			return fmt.Errorf("failed to configure cloud manager: %w", err)
+		}
+	}
+	
+	if !e.cloudManager.Enabled {
+		e.logger.Info("Cloud integration is not enabled, skipping sync")
+		return nil
+	}
+	
+	// Sync test results to cloud
+	ctx := context.Background()
+	err := e.cloudManager.SyncTestResults(ctx, e.outputDir)
+	if err != nil {
+		return fmt.Errorf("cloud sync failed: %w", err)
+	}
+	
+	e.logger.Info("Cloud synchronization completed successfully")
+	return nil
+}
+
+// executeCloudAnalytics generates cloud analytics report
+func (e *Executor) executeCloudAnalytics(app config.AppConfig) error {
+	e.logger.Info("Generating cloud analytics report...")
+	
+	if !e.cloudManager.Enabled {
+		return fmt.Errorf("cloud integration is not enabled")
+	}
+	
+	// Generate cloud report
+	ctx := context.Background()
+	report, err := e.cloudManager.GenerateCloudReport(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to generate cloud report: %w", err)
+	}
+	
+	// Save report to file
+	reportPath := filepath.Join(e.outputDir, "cloud_analytics_report.json")
+	if err := e.saveCloudReport(report, reportPath); err != nil {
+		return fmt.Errorf("failed to save cloud report: %w", err)
+	}
+	
+	e.logger.Infof("Cloud analytics report generated: %s", reportPath)
+	return nil
+}
+
+// executeDistributedCloudTest executes distributed cloud testing
+func (e *Executor) executeDistributedCloudTest(app config.AppConfig, action config.Action) error {
+	e.logger.Info("Executing distributed cloud testing...")
+	
+	if !e.cloudManager.Enabled {
+		return fmt.Errorf("cloud integration is not enabled")
+	}
+	
+	if !e.cloudManager.Config.EnableDistributed {
+		return fmt.Errorf("distributed testing is not enabled")
+	}
+	
+	// Get distributed nodes from action parameters
+	var nodes []cloud.DistributedNode
+	if action.Parameters != nil {
+		if nodesParam, ok := action.Parameters["nodes"]; ok {
+			if nodesSlice, ok := nodesParam.([]interface{}); ok {
+				for _, nodeParam := range nodesSlice {
+					if nodeMap, ok := nodeParam.(map[string]interface{}); ok {
+						node := cloud.DistributedNode{}
+						
+						if id, ok := nodeMap["id"].(string); ok {
+							node.ID = id
+						}
+						if name, ok := nodeMap["name"].(string); ok {
+							node.Name = name
+						}
+						if location, ok := nodeMap["location"].(string); ok {
+							node.Location = location
+						}
+						if capacity, ok := nodeMap["capacity"].(string); ok {
+							node.Capacity = capacity
+						}
+						if endpoint, ok := nodeMap["endpoint"].(string); ok {
+							node.Endpoint = endpoint
+						}
+						if apiKey, ok := nodeMap["api_key"].(string); ok {
+							node.APIKey = apiKey
+						}
+						if priority, ok := nodeMap["priority"].(int); ok {
+							node.Priority = priority
+						}
+						
+						nodes = append(nodes, node)
+					}
+				}
+			}
+		}
+	}
+	
+	// Fallback to configured nodes if none provided in action
+	if len(nodes) == 0 && len(e.cloudManager.Config.DistributedNodes) > 0 {
+		nodes = e.cloudManager.Config.DistributedNodes
+	}
+	
+	if len(nodes) == 0 {
+		return fmt.Errorf("no distributed nodes configured or provided")
+	}
+	
+	// Execute distributed test
+	ctx := context.Background()
+	results, err := e.cloudManager.ExecuteDistributedTest(ctx, e.config, nodes)
+	if err != nil {
+		return fmt.Errorf("distributed test execution failed: %w", err)
+	}
+	
+	// Record analytics data point
+	analyticsData := cloud.AnalyticsDataPoint{
+		Timestamp:   time.Now(),
+		TestCount:   len(results),
+		SuccessRate: calculateSuccessRate(results),
+		ErrorCount:   countErrors(results),
+		NodeCount:    len(nodes),
+		Region:      "distributed",
+		Provider:    e.cloudManager.Config.Provider,
+		Metrics:     map[string]float64{
+			"avg_execution_time": calculateAverageExecutionTime(results),
+			"throughput":        float64(len(results)) / time.Since(results[0].StartTime).Seconds(),
+		},
+	}
+	
+	e.cloudAnalytics.RecordAnalytics(analyticsData)
+	
+	e.logger.Infof("Distributed test completed: %d nodes, %.2f%% success rate", 
+		len(results), analyticsData.SuccessRate)
+	
+	return nil
+}
+
+// executeCloudCleanup executes cloud file cleanup
+func (e *Executor) executeCloudCleanup(app config.AppConfig) error {
+	e.logger.Info("Starting cloud cleanup...")
+	
+	if !e.cloudManager.Enabled {
+		return fmt.Errorf("cloud integration is not enabled")
+	}
+	
+	// Execute cleanup
+	ctx := context.Background()
+	err := e.cloudManager.CleanupOldFiles(ctx)
+	if err != nil {
+		return fmt.Errorf("cloud cleanup failed: %w", err)
+	}
+	
+	e.logger.Info("Cloud cleanup completed successfully")
+	return nil
+}
+
+// saveCloudReport saves cloud report to JSON file
+func (e *Executor) saveCloudReport(report *cloud.CloudReport, filePath string) error {
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal cloud report: %w", err)
+	}
+	
+	return os.WriteFile(filePath, data, 0644)
+}
+
+// Helper functions for map conversion
+
+func getStringFromMap(m map[string]interface{}, key string) string {
+	if val, ok := m[key].(string); ok {
+		return val
+	}
+	return ""
+}
+
+func getBoolFromMap(m map[string]interface{}, key string) bool {
+	if val, ok := m[key].(bool); ok {
+		return val
+	}
+	return false
+}
+
+func getIntFromMap(m map[string]interface{}, key string) int {
+	if val, ok := m[key].(int); ok {
+		return val
+	}
+	if val, ok := m[key].(float64); ok {
+		return int(val)
+	}
+	return 0
+}
+
+func calculateSuccessRate(results []cloud.CloudTestResult) float64 {
+	if len(results) == 0 {
+		return 0
+	}
+	
+	successCount := 0
+	for _, result := range results {
+		if result.Success {
+			successCount++
+		}
+	}
+	
+	return float64(successCount) / float64(len(results)) * 100
+}
+
+func countErrors(results []cloud.CloudTestResult) int {
+	errorCount := 0
+	for _, result := range results {
+		if !result.Success {
+			errorCount++
+		}
+	}
+	return errorCount
+}
+
+func calculateAverageExecutionTime(results []cloud.CloudTestResult) float64 {
+	if len(results) == 0 {
+		return 0
+	}
+	
+	var totalTime time.Duration
+	for _, result := range results {
+		totalTime += result.Duration
+	}
+	
+	return totalTime.Seconds() / float64(len(results))
 }
 
 func (e *Executor) generateJSONReport(outputPath string) error {

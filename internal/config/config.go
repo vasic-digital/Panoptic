@@ -41,18 +41,21 @@ type Action struct {
 }
 
 type Settings struct {
-	ScreenshotFormat string `yaml:"screenshot_format"` // png, jpg
-	VideoFormat      string `yaml:"video_format"`      // mp4, webm
-	Quality          int    `yaml:"quality"`           // 1-100
-	Headless         bool   `yaml:"headless"`
-	WindowWidth      int    `yaml:"window_width"`
-	WindowHeight     int    `yaml:"window_height"`
-	MobileDevice     string `yaml:"mobile_device"`
-	EnableMetrics    bool   `yaml:"enable_metrics"`
-	LogLevel         string `yaml:"log_level"`
+	ScreenshotFormat string                 `yaml:"screenshot_format"` // png, jpg
+	VideoFormat      string                 `yaml:"video_format"`      // mp4, webm
+	Quality          int                    `yaml:"quality"`           // 1-100
+	Headless         bool                   `yaml:"headless"`
+	WindowWidth      int                    `yaml:"window_width"`
+	WindowHeight     int                    `yaml:"window_height"`
+	MobileDevice     string                 `yaml:"mobile_device"`
+	EnableMetrics    bool                   `yaml:"enable_metrics"`
+	LogLevel         string                 `yaml:"log_level"`
 	
 	// AI-Enhanced Testing Settings
-	AITesting        *AITestingSettings `yaml:"ai_testing,omitempty"`
+	AITesting        *AITestingSettings      `yaml:"ai_testing,omitempty"`
+	
+	// Cloud Integration Settings
+	Cloud            map[string]interface{}     `yaml:"cloud,omitempty"`
 }
 
 type AITestingSettings struct {
