@@ -6,9 +6,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"panoptic/internal/ai"
 	"panoptic/internal/config"
 	"panoptic/internal/logger"
 	"panoptic/internal/platforms"
+	"panoptic/internal/vision"
 )
 
 type Executor struct {
@@ -17,6 +19,7 @@ type Executor struct {
 	logger     *logger.Logger
 	factory    *platforms.PlatformFactory
 	results    []TestResult
+	testGen    *ai.TestGenerator
 }
 
 type TestResult struct {
@@ -243,6 +246,13 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 			return webPlatform.GenerateVisionReport(e.outputDir)
 		}
 		return fmt.Errorf("vision report only supported on web platform")
+		
+	case "ai_test_generation":
+		// Generate AI-powered tests
+		if webPlatform, ok := platform.(*platforms.WebPlatform); ok {
+			return e.generateAITests(webPlatform)
+		}
+		return fmt.Errorf("AI test generation only supported on web platform")
 		
 	default:
 		return fmt.Errorf("unknown action type: %s", action.Type)
@@ -612,6 +622,42 @@ func (e *Executor) generateDetailedResults() string {
 	}
 	
 	return html
+}
+
+// generateAITests generates AI-powered tests
+func (e *Executor) generateAITests(webPlatform *platforms.WebPlatform) error {
+	// Take screenshot for analysis
+	screenshotPath := filepath.Join(e.outputDir, "ai_analysis_screenshot.png")
+	if err := webPlatform.Screenshot(screenshotPath); err != nil {
+		return fmt.Errorf("failed to take screenshot for AI analysis: %w", err)
+	}
+	
+	// Initialize AI test generator if not already done
+	if e.testGen == nil {
+		visionDetector := vision.NewElementDetector(*e.logger)
+		e.testGen = ai.NewTestGenerator(*e.logger, visionDetector)
+	}
+	
+	// Detect elements using vision
+	elements, err := e.testGen.Vision.DetectElements(screenshotPath)
+	if err != nil {
+		return fmt.Errorf("failed to detect elements for AI test generation: %w", err)
+	}
+	
+	// Generate AI-powered tests
+	tests, err := e.testGen.GenerateTestsFromElements(elements, "web")
+	if err != nil {
+		return fmt.Errorf("failed to generate AI tests: %w", err)
+	}
+	
+	// Generate AI test report
+	analysis := e.testGen.AnalyzeElements(elements)
+	if err := e.testGen.GenerateAITestReport(tests, analysis, e.outputDir); err != nil {
+		return fmt.Errorf("failed to generate AI test report: %w", err)
+	}
+	
+	e.logger.Infof("Generated %d AI-powered tests from %d elements", len(tests), len(elements))
+	return nil
 }
 
 func (e *Executor) generateJSONReport(outputPath string) error {

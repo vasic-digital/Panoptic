@@ -1,0 +1,21 @@
+name: "AI Test Generation Test"
+output: "./ai_test_generation_output"
+
+apps:
+  - name: "AI Test Generation Web Test"
+    type: "web"
+    url: "https://example.com"
+    timeout: 10
+
+actions:
+  - name: "initial_screenshot"
+    type: "screenshot"
+    
+  - name: "generate_ai_tests"
+    type: "ai_test_generation"
+
+settings:
+  screenshot_format: "png"
+  quality: 80
+  enable_metrics: true
+  log_level: "info"
