@@ -1,0 +1,40 @@
+name: "Enterprise Status Test"
+output: "./enterprise_status_test_output"
+
+apps:
+  - name: "Enterprise Test App"
+    type: "web"
+    url: "https://example.com"
+    timeout: 15
+
+actions:
+  - name: "navigate_to_page"
+    type: "navigate"
+    value: "https://example.com"
+    
+  - name: "wait_for_load"
+    type: "wait"
+    wait_time: 3
+    
+  - name: "enterprise_status"
+    type: "enterprise_status"
+
+settings:
+  screenshot_format: "png"
+  quality: 90
+  enable_metrics: true
+  log_level: "info"
+  
+  # Enterprise Management Settings
+  enterprise:
+    enabled: true
+    organization_name: "Panoptic Enterprise Test"
+    domain: "panoptic.com"
+    storage_path: "./enterprise_test_data"
+    auth_method: "local"
+    default_role: "developer"
+    max_users: 50
+    max_projects: 25
+    max_api_keys: 100
+    api_rate_limit: 1000
+    session_timeout: 120

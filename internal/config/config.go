@@ -56,6 +56,9 @@ type Settings struct {
 	
 	// Cloud Integration Settings
 	Cloud            map[string]interface{}     `yaml:"cloud,omitempty"`
+	
+	// Enterprise Management Settings
+	Enterprise        map[string]interface{}     `yaml:"enterprise,omitempty"`
 }
 
 type AITestingSettings struct {

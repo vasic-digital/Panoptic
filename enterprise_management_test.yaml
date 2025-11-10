@@ -1,0 +1,186 @@
+name: "Enterprise Management Test"
+output: "./enterprise_management_test_output"
+
+apps:
+  - name: "Enterprise Test App"
+    type: "web"
+    url: "https://example.com"
+    timeout: 15
+
+actions:
+  - name: "navigate_to_page"
+    type: "navigate"
+    value: "https://example.com"
+    
+  - name: "wait_for_load"
+    type: "wait"
+    wait_time: 3
+    
+  - name: "enterprise_status"
+    type: "enterprise_status"
+    
+  - name: "enterprise_user_create"
+    type: "enterprise_user_create"
+    parameters:
+      username: "testuser"
+      email: "testuser@panoptic.com"
+      first_name: "Test"
+      last_name: "User"
+      password: "TestPassword123!"
+      role: "developer"
+      team_ids: ["team1"]
+      project_ids: ["project1"]
+      
+  - name: "enterprise_authenticate"
+    type: "enterprise_authenticate"
+    parameters:
+      username: "testuser"
+      password: "TestPassword123!"
+      
+  - name: "enterprise_project_create"
+    type: "enterprise_project_create"
+    parameters:
+      name: "Test Project"
+      description: "A test project for enterprise management"
+      owner_id: "owner1"
+      team_ids: ["team1"]
+      member_ids: ["member1", "member2"]
+      
+  - name: "enterprise_team_create"
+    type: "enterprise_team_create"
+    parameters:
+      name: "Test Team"
+      description: "A test team for enterprise management"
+      lead_id: "lead1"
+      member_ids: ["member1", "member2"]
+      project_ids: ["project1"]
+      
+  - name: "enterprise_api_key_create"
+    type: "enterprise_api_key_create"
+    parameters:
+      user_id: "user1"
+      name: "Test API Key"
+      permissions: ["test.create", "test.read", "test.run"]
+      scopes: ["api", "read"]
+      rate_limit: 1000
+      enabled: true
+      
+  - name: "enterprise_audit_report"
+    type: "enterprise_audit_report"
+    parameters:
+      page: 1
+      page_size: 50
+      category: "auth"
+      success: true
+      
+  - name: "enterprise_compliance_check"
+    type: "enterprise_compliance_check"
+    parameters:
+      standards: ["GDPR", "SOC2"]
+      
+  - name: "enterprise_backup"
+    type: "enterprise_backup"
+    parameters:
+      type: "full"
+      location: "./enterprise_backup"
+
+settings:
+  screenshot_format: "png"
+  quality: 90
+  enable_metrics: true
+  log_level: "info"
+  
+  # Enterprise Management Settings
+  enterprise:
+    enabled: true
+    organization_name: "Panoptic Enterprise Test"
+    domain: "panoptic.com"
+    storage_path: "./enterprise_test_data"
+    auth_method: "local"
+    default_role: "developer"
+    max_users: 50
+    max_projects: 25
+    api_rate_limit: 1000
+    session_timeout: 120
+    
+    license:
+      key: "test_enterprise_license"
+      type: "enterprise"
+      max_users: 50
+      max_projects: 25
+      expires_at: "2024-12-31T23:59:59Z"
+      features: ["all"]
+      
+    password_policy:
+      min_length: 8
+      require_uppercase: true
+      require_lowercase: true
+      require_numbers: true
+      require_symbols: true
+      max_age_days: 90
+      max_history: 5
+      
+    backup_config:
+      enabled: true
+      schedule: "daily"
+      retention_days: 30
+      locations: ["./enterprise_test_backup"]
+      compression: true
+      encryption: true
+      
+    compliance:
+      enabled: true
+      standards: ["GDPR", "SOC2"]
+      data_retention: 365
+      audit_retention: 1825
+      data_encryption: true
+      audit_encryption: true
+      require_approval: false
+      
+    integration:
+      ldap:
+        enabled: false
+        server: "ldap://localhost"
+        port: 389
+        base_dn: "dc=panoptic,dc=com"
+        user_filter: "(uid={username})"
+        bind_dn: "cn=admin,dc=panoptic,dc=com"
+        bind_password: "admin_password"
+        use_ssl: false
+      sso:
+        enabled: false
+        provider: "saml"
+        entity_id: "panoptic"
+        metadata_url: "https://idp.panoptic.com/metadata"
+        certificate: "saml_certificate"
+        private_key: "saml_private_key"
+        redirect_uri: "https://panoptic.com/saml/acs"
+      oauth2:
+        enabled: false
+        provider: "github"
+        client_id: "github_client_id"
+        secret: "github_client_secret"
+        redirect: "https://panoptic.com/oauth/github/callback"
+        scopes: ["read:user", "user:email"]
+      webhook:
+        enabled: true
+        endpoints: ["https://webhook.panoptic.com/events"]
+        headers:
+          Authorization: "Bearer webhook_secret"
+          Content-Type: "application/json"
+        events: ["user.create", "project.create", "test.run"]
+        secret: "webhook_secret"
+      siem:
+        enabled: false
+        provider: "splunk"
+        endpoint: "https://splunk.panoptic.com:8088"
+        api_key: "splunk_api_key"
+        index: "panoptic_audit"
+      monitoring:
+        enabled: false
+        provider: "prometheus"
+        endpoint: "http://prometheus.panoptic.com:9090"
+        metrics: ["users.total", "projects.total", "tests.total", "success_rate"]
+        labels:
+          service: "panoptic"
+          environment: "enterprise"
