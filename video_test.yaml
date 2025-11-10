@@ -1,0 +1,30 @@
+name: "Video Recording Test"
+output: "./video_test_output"
+
+apps:
+  - name: "Video Test Web"
+    type: "web"
+    url: "https://example.com"
+    timeout: 10
+
+actions:
+  - name: "start_recording"
+    type: "record"
+    duration: 5
+    
+  - name: "wait_during_recording"
+    type: "wait"
+    wait_time: 3
+    
+  - name: "take_screenshot"
+    type: "screenshot"
+    
+  - name: "stop_recording"
+    type: "wait"
+    wait_time: 2
+
+settings:
+  screenshot_format: "png"
+  quality: 80
+  enable_metrics: true
+  log_level: "info"

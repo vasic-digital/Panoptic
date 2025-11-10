@@ -1,0 +1,30 @@
+name: "Desktop Video Test"
+output: "./desktop_video_test_output"
+
+apps:
+  - name: "Desktop Video Test"
+    type: "desktop"
+    path: "/Applications/Google Chrome.app"
+    timeout: 10
+
+actions:
+  - name: "start_recording"
+    type: "record"
+    duration: 5
+    
+  - name: "wait_during_recording"
+    type: "wait"
+    wait_time: 3
+    
+  - name: "take_screenshot"
+    type: "screenshot"
+    
+  - name: "wait_more"
+    type: "wait"
+    wait_time: 2
+
+settings:
+  screenshot_format: "png"
+  quality: 80
+  enable_metrics: true
+  log_level: "info"

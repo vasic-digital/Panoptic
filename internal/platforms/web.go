@@ -216,33 +216,80 @@ func (w *WebPlatform) Screenshot(filename string) error {
 }
 
 func (w *WebPlatform) StartRecording(filename string) error {
-	// This is a simplified implementation
-	// In a real implementation, you would use a proper screen recording library
+	// Input validation
+	if filename == "" {
+		return fmt.Errorf("filename cannot be empty")
+	}
+	if w.page == nil {
+		return fmt.Errorf("web page not initialized")
+	}
+	
+	// Safe slice append
+	if videosTaken, ok := w.metrics["videos_taken"].([]string); ok {
+		w.metrics["videos_taken"] = append(videosTaken, filename)
+	}
+	
 	w.recording = true
 	w.metrics["recording_started"] = time.Now()
 	w.metrics["recording_file"] = filename
 	
-	// Create placeholder file for demonstration
+	// Create video directory
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return fmt.Errorf("failed to create video directory: %w", err)
 	}
 	
-	// For now, create a placeholder file
+	// For web platform, we'll use a browser recording approach
+	// In a real implementation, you might use:
+	// 1. Chrome DevTools Protocol screen capture
+	// 2. Third-party libraries like Puppeteer's screen recording
+	// 3. System-level recording focused on browser window
+	
+	// For now, we'll create a more sophisticated placeholder
+	// that could be extended with actual recording libraries
+	
+	// Create a dummy video file (in real implementation, this would be actual video data)
 	file, err := os.Create(filename)
 	if err != nil {
 		return fmt.Errorf("failed to create video file: %w", err)
 	}
+	
+	// Write a simple header that indicates this is a placeholder
+	placeholderHeader := []byte("# PANOPTIC VIDEO RECORDING PLACEHOLDER\n# Web Platform\n# Recording started: " + time.Now().Format(time.RFC3339) + "\n# File: " + filename + "\n")
+	
+	if _, err := file.Write(placeholderHeader); err != nil {
+		file.Close()
+		return fmt.Errorf("failed to write video header: %w", err)
+	}
 	file.Close()
 	
+	// w.logger.Infof("Web video recording started: %s", filename)
+	// For now, just comment out logger until we add logger field
 	return nil
 }
 
 func (w *WebPlatform) StopRecording() error {
-	if w.recording {
-		w.recording = false
-		w.metrics["recording_stopped"] = time.Now()
-		w.metrics["recording_duration"] = w.metrics["recording_stopped"].(time.Time).Sub(w.metrics["recording_started"].(time.Time))
+	if !w.recording {
+		return fmt.Errorf("no recording in progress")
 	}
+	
+	w.recording = false
+	w.metrics["recording_stopped"] = time.Now()
+	
+	// Calculate recording duration safely
+	if startTime, ok := w.metrics["recording_started"].(time.Time); ok {
+		if stopTime, ok := w.metrics["recording_stopped"].(time.Time); ok {
+			w.metrics["recording_duration"] = stopTime.Sub(startTime)
+		}
+	}
+	
+	// In a real implementation, this would:
+	// 1. Stop the browser recording process
+	// 2. Save the video file with proper encoding
+	// 3. Close any open file handles
+	// 4. Return final video metadata
+	
+	// w.logger.Infof("Web video recording stopped. Duration: %v", w.metrics["recording_duration"])
+	// For now, just comment out logger until we add logger field
 	return nil
 }
 

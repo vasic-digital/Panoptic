@@ -1,0 +1,28 @@
+name: "Mobile Video Test"
+output: "./mobile_video_test_output"
+
+apps:
+  - name: "Android Video Test"
+    type: "mobile"
+    platform: "android"
+    emulator: true
+    device: "emulator-5554"
+    timeout: 10
+
+actions:
+  - name: "start_recording"
+    type: "record"
+    duration: 5
+    
+  - name: "wait_during_recording"
+    type: "wait"
+    wait_time: 3
+    
+  - name: "take_screenshot"
+    type: "screenshot"
+
+settings:
+  screenshot_format: "png"
+  quality: 80
+  enable_metrics: true
+  log_level: "info"
