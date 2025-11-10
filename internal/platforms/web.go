@@ -461,14 +461,39 @@ func (w *WebPlatform) Close() error {
 	if w.cancel != nil {
 		w.cancel()
 	}
-	
+
 	if w.page != nil {
 		w.page.Close()
 	}
-	
+
 	if w.browser != nil {
 		w.browser.Close()
 	}
-	
+
 	return nil
+}
+
+// GetPageState returns the current page state for AI analysis
+func (w *WebPlatform) GetPageState() (interface{}, error) {
+	if w.page == nil {
+		return nil, fmt.Errorf("web platform not initialized")
+	}
+
+	// Get page HTML
+	html, err := w.page.HTML()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get page HTML: %w", err)
+	}
+
+	// Get page URL
+	url := w.page.MustInfo().URL
+
+	// Return page state as a map
+	pageState := map[string]interface{}{
+		"url":  url,
+		"html": html,
+		"timestamp": time.Now(),
+	}
+
+	return pageState, nil
 }

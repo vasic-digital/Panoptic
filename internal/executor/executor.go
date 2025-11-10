@@ -16,7 +16,7 @@ import (
 	"panoptic/internal/enterprise"
 	"panoptic/internal/logger"
 	"panoptic/internal/platforms"
-	"panoptic/internal/vision"
+	// "panoptic/internal/vision" // TODO: Will be used when vision features are fully implemented
 )
 
 type Executor struct {
@@ -44,6 +44,43 @@ type TestResult struct {
 	Videos     []string                  `json:"videos"`
 	Success    bool                      `json:"success"`
 	Error      string                    `json:"error,omitempty"`
+}
+
+// Helper functions for safely extracting values from maps
+
+// getStringFromMap safely extracts a string value from a map
+func getStringFromMap(m map[string]interface{}, key string) string {
+	if val, ok := m[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
+		}
+	}
+	return ""
+}
+
+// getBoolFromMap safely extracts a bool value from a map
+func getBoolFromMap(m map[string]interface{}, key string) bool {
+	if val, ok := m[key]; ok {
+		if b, ok := val.(bool); ok {
+			return b
+		}
+	}
+	return false
+}
+
+// getIntFromMap safely extracts an int value from a map
+func getIntFromMap(m map[string]interface{}, key string) int {
+	if val, ok := m[key]; ok {
+		switch v := val.(type) {
+		case int:
+			return v
+		case int64:
+			return int(v)
+		case float64:
+			return int(v)
+		}
+	}
+	return 0
 }
 
 func NewExecutor(cfg *config.Config, outputDir string, log *logger.Logger) *Executor {
@@ -378,16 +415,18 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 		
 	case "cloud_cleanup":
 		// Cleanup old cloud files
-		
+		return e.cloudManager.CleanupOldFiles(context.Background())
+
 	case "enterprise_status":
 		// Get enterprise status
 		return e.executeEnterpriseStatus(app, action)
 		
 	default:
 		return fmt.Errorf("unknown action type: %s", action.Type)
-}
+	}
 
-// executeEnterpriseStatus executes enterprise status check
+	return nil
+}
 
 // executeEnterpriseStatus executes enterprise status check
 func (e *Executor) executeEnterpriseStatus(app config.AppConfig, action config.Action) error {
@@ -413,20 +452,57 @@ func (e *Executor) executeEnterpriseStatus(app config.AppConfig, action config.A
 	return nil
 }
 
+// calculateSuccessRate calculates the success rate from cloud test results
 func calculateSuccessRate(results []cloud.CloudTestResult) float64 {
+	if len(results) == 0 {
+		return 0.0
+	}
+
+	successCount := 0
+	for _, result := range results {
+		if result.Success {
+			successCount++
+		}
+	}
+
+	return float64(successCount) / float64(len(results)) * 100
+}
+
+// createEnterpriseConfigFile creates a temporary enterprise configuration file
+func (e *Executor) createEnterpriseConfigFile(configPath string, enterpriseConfig map[string]interface{}) error {
+	defaultConfig := map[string]interface{}{
+		"enabled": true,
+		"organization": map[string]interface{}{
+			"name": "Default Organization",
+			"id":   "default-org",
+		},
+		"users": map[string]interface{}{
+			"admin_email": "admin@example.com",
+			"max_users":   100,
+		},
+		"projects": map[string]interface{}{
+			"max_projects": 50,
+		},
+		"api": map[string]interface{}{
+			"enabled":       true,
+			"port":          8080,
+			"auth_required": true,
+		},
+		"backup": map[string]interface{}{
+			"enabled":        true,
 			"retention_days": 30,
 			"locations":      []string{"./enterprise_backup"},
 			"compression":    true,
 			"encryption":     true,
 		},
 		"compliance": map[string]interface{}{
-			"enabled":           true,
-			"standards":         []string{"GDPR", "SOC2"},
-			"data_retention":     365,
-			"audit_retention":    1825,
-			"data_encryption":    true,
-			"audit_encryption":   true,
-			"require_approval":   false,
+			"enabled":          true,
+			"standards":        []string{"GDPR", "SOC2"},
+			"data_retention":   365,
+			"audit_retention":  1825,
+			"data_encryption":  true,
+			"audit_encryption": true,
+			"require_approval": false,
 		},
 	}
 
@@ -446,6 +522,195 @@ func calculateSuccessRate(results []cloud.CloudTestResult) float64 {
 	return os.WriteFile(configPath, data, 0600)
 }
 
+// generateAITests generates AI-powered test cases
+func (e *Executor) generateAITests(platform *platforms.WebPlatform) error {
+	e.logger.Info("Generating AI-powered tests...")
+
+	if e.aiTester == nil {
+		return fmt.Errorf("AI tester not initialized")
+	}
+
+	// Get current page state
+	pageState, err := platform.GetPageState()
+	if err != nil {
+		return fmt.Errorf("failed to get page state: %w", err)
+	}
+
+	// Generate tests using AI
+	tests, err := e.aiTester.GenerateTests(pageState)
+	if err != nil {
+		return fmt.Errorf("failed to generate AI tests: %w", err)
+	}
+
+	// Save generated tests
+	testsPath := filepath.Join(e.outputDir, "ai_generated_tests.yaml")
+	if err := e.aiTester.SaveTests(tests, testsPath); err != nil {
+		return fmt.Errorf("failed to save AI tests: %w", err)
+	}
+
+	e.logger.Infof("Generated %d AI tests, saved to %s", len(tests), testsPath)
+	return nil
+}
+
+// generateSmartErrorDetection performs smart error detection
+func (e *Executor) generateSmartErrorDetection(platform *platforms.WebPlatform) error {
+	e.logger.Info("Performing smart error detection...")
+
+	if e.aiTester == nil {
+		return fmt.Errorf("AI tester not initialized")
+	}
+
+	// Get current page state
+	pageState, err := platform.GetPageState()
+	if err != nil {
+		return fmt.Errorf("failed to get page state: %w", err)
+	}
+
+	// Detect errors using AI
+	errors, err := e.aiTester.DetectErrors(pageState)
+	if err != nil {
+		return fmt.Errorf("failed to detect errors: %w", err)
+	}
+
+	// Save error report
+	reportPath := filepath.Join(e.outputDir, "smart_error_report.json")
+	if err := e.aiTester.SaveErrorReport(errors, reportPath); err != nil {
+		return fmt.Errorf("failed to save error report: %w", err)
+	}
+
+	e.logger.Infof("Detected %d potential errors, report saved to %s", len(errors), reportPath)
+	return nil
+}
+
+// executeAIEnhancedTesting executes AI-enhanced testing
+func (e *Executor) executeAIEnhancedTesting(platform platforms.Platform, app config.AppConfig) error {
+	e.logger.Info("Executing AI-enhanced testing...")
+
+	if e.aiTester == nil {
+		return fmt.Errorf("AI tester not initialized")
+	}
+
+	webPlatform, ok := platform.(*platforms.WebPlatform)
+	if !ok {
+		return fmt.Errorf("AI-enhanced testing only supported on web platform")
+	}
+
+	// Perform AI-enhanced test execution
+	results, err := e.aiTester.ExecuteEnhancedTesting(webPlatform, e.config.Actions)
+	if err != nil {
+		return fmt.Errorf("AI-enhanced testing failed: %w", err)
+	}
+
+	// Save results
+	reportPath := filepath.Join(e.outputDir, "ai_enhanced_testing_report.json")
+	if err := e.aiTester.SaveTestingReport(results, reportPath); err != nil {
+		return fmt.Errorf("failed to save AI testing report: %w", err)
+	}
+
+	e.logger.Infof("AI-enhanced testing completed, report saved to %s", reportPath)
+	return nil
+}
+
+// executeCloudSync syncs test results to cloud storage
+func (e *Executor) executeCloudSync(app config.AppConfig) error {
+	e.logger.Info("Syncing test results to cloud...")
+
+	if e.cloudManager == nil {
+		return fmt.Errorf("cloud manager not initialized")
+	}
+
+	// Upload all test artifacts
+	files, err := filepath.Glob(filepath.Join(e.outputDir, "*"))
+	if err != nil {
+		return fmt.Errorf("failed to list output files: %w", err)
+	}
+
+	uploadedCount := 0
+	for _, file := range files {
+		if err := e.cloudManager.Upload(file); err != nil {
+			e.logger.Warnf("Failed to upload %s: %v", file, err)
+			continue
+		}
+		uploadedCount++
+	}
+
+	e.logger.Infof("Uploaded %d/%d files to cloud storage", uploadedCount, len(files))
+	return nil
+}
+
+// executeCloudAnalytics generates cloud analytics report
+func (e *Executor) executeCloudAnalytics(app config.AppConfig) error {
+	e.logger.Info("Generating cloud analytics...")
+
+	if e.cloudAnalytics == nil {
+		return fmt.Errorf("cloud analytics not initialized")
+	}
+
+	// Generate analytics
+	analytics, err := e.cloudAnalytics.GenerateAnalytics(e.results)
+	if err != nil {
+		return fmt.Errorf("failed to generate analytics: %w", err)
+	}
+
+	// Save analytics report
+	reportPath := filepath.Join(e.outputDir, "cloud_analytics_report.json")
+	if err := e.cloudAnalytics.SaveReport(analytics, reportPath); err != nil {
+		return fmt.Errorf("failed to save analytics report: %w", err)
+	}
+
+	e.logger.Infof("Cloud analytics report saved to %s", reportPath)
+	return nil
+}
+
+// executeDistributedCloudTest executes distributed cloud test
+func (e *Executor) executeDistributedCloudTest(app config.AppConfig, action config.Action) error {
+	e.logger.Info("Executing distributed cloud test...")
+
+	if e.cloudManager == nil {
+		return fmt.Errorf("cloud manager not initialized")
+	}
+
+	// Get distributed nodes from config
+	var nodes []cloud.DistributedNode
+	if e.config.Settings.Cloud != nil {
+		if nodesInterface, ok := e.config.Settings.Cloud["distributed_nodes"].([]interface{}); ok {
+			for _, node := range nodesInterface {
+				if nodeMap, ok := node.(map[string]interface{}); ok {
+					nodes = append(nodes, cloud.DistributedNode{
+						ID:       getStringFromMap(nodeMap, "id"),
+						Name:     getStringFromMap(nodeMap, "name"),
+						Location: getStringFromMap(nodeMap, "location"),
+						Capacity: getStringFromMap(nodeMap, "capacity"),
+						Endpoint: getStringFromMap(nodeMap, "endpoint"),
+						APIKey:   getStringFromMap(nodeMap, "api_key"),
+						Priority: getIntFromMap(nodeMap, "priority"),
+					})
+				}
+			}
+		}
+	}
+
+	// Execute distributed test across nodes
+	results, err := e.cloudManager.ExecuteDistributedTest(context.Background(), app, nodes)
+	if err != nil {
+		return fmt.Errorf("distributed test failed: %w", err)
+	}
+
+	// Save results
+	reportPath := filepath.Join(e.outputDir, "distributed_test_report.json")
+	data, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal results: %w", err)
+	}
+
+	if err := os.WriteFile(reportPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to save results: %w", err)
+	}
+
+	e.logger.Infof("Distributed test completed, report saved to %s", reportPath)
+	return nil
+}
+
 // saveEnterpriseReport saves an enterprise report to JSON file
 func (e *Executor) saveEnterpriseReport(report interface{}, filePath string) error {
 	data, err := json.MarshalIndent(report, "", "  ")
@@ -456,3 +721,26 @@ func (e *Executor) saveEnterpriseReport(report interface{}, filePath string) err
 	return os.WriteFile(filePath, data, 0644)
 }
 
+
+// GenerateReport generates an HTML report from test results
+func (e *Executor) GenerateReport(outputPath string) error {
+	e.logger.Infof("Generating report: %s", outputPath)
+
+	// TODO: Implement comprehensive HTML report generation
+	// This is a stub implementation
+
+	report := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+	<title>Panoptic Test Report</title>
+</head>
+<body>
+	<h1>Test Report</h1>
+	<p>Generated: %s</p>
+	<p>Total Tests: %d</p>
+	<p>Status: Report generation not fully implemented</p>
+</body>
+</html>`, time.Now().Format(time.RFC3339), len(e.results))
+
+	return os.WriteFile(outputPath, []byte(report), 0644)
+}
