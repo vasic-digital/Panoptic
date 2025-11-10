@@ -1,0 +1,25 @@
+name: "Smart Error Detection Test"
+output: "./smart_error_detection_output"
+
+apps:
+  - name: "Smart Error Detection Web Test"
+    type: "web"
+    url: "https://example.com"
+    timeout: 10
+
+actions:
+  - name: "initial_screenshot"
+    type: "screenshot"
+    
+  - name: "simulate_errors"
+    type: "click"
+    selector: "nonexistent-element"
+    
+  - name: "generate_error_report"
+    type: "smart_error_detection"
+
+settings:
+  screenshot_format: "png"
+  quality: 80
+  enable_metrics: true
+  log_level: "info"

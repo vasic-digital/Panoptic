@@ -1,0 +1,18 @@
+name: "Simple Smart Error Detection Test"
+output: "./simple_error_detection_output"
+
+apps:
+  - name: "Simple Error Detection Test"
+    type: "web"
+    url: "https://example.com"
+    timeout: 10
+
+actions:
+  - name: "generate_error_report"
+    type: "smart_error_detection"
+
+settings:
+  screenshot_format: "png"
+  quality: 80
+  enable_metrics: true
+  log_level: "info"
