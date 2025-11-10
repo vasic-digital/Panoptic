@@ -104,9 +104,26 @@ func (w *WebPlatform) Click(selector string) error {
 		return fmt.Errorf("failed to find element %s: %w", selector, err)
 	}
 	
-	if err := element.Click("left", 1); err != nil {
-		return fmt.Errorf("failed to click element %s: %w", selector, err)
+	// Enhanced click with scroll into view
+	if err := element.ScrollIntoView(); err != nil {
+		// Non-fatal error, continue with click
 	}
+	
+	// Wait for element to be visible
+	if err := element.WaitVisible(); err != nil {
+		return fmt.Errorf("element %s not visible: %w", selector, err)
+	}
+	
+	// Click with fallback
+	if err := element.Click("left", 1); err != nil {
+		// Try alternative click method
+		if err := element.Tap(); err != nil {
+			return fmt.Errorf("failed to click element %s: %w", selector, err)
+		}
+	}
+	
+	// Wait a moment after click
+	time.Sleep(500 * time.Millisecond)
 	
 	waitForPageLoad()
 	return nil

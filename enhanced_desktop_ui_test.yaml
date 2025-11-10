@@ -1,0 +1,30 @@
+name: "Enhanced Desktop UI Test"
+output: "./enhanced_desktop_ui_test_output"
+
+apps:
+  - name: "Enhanced Desktop Test"
+    type: "desktop"
+    path: "/Applications/Google Chrome.app"
+    timeout: 10
+
+actions:
+  - name: "enhanced_click_center"
+    type: "click"
+    selector: "center"
+    
+  - name: "wait_after_click"
+    type: "wait"
+    wait_time: 2
+    
+  - name: "take_screenshot"
+    type: "screenshot"
+    
+  - name: "final_wait"
+    type: "wait"
+    wait_time: 1
+
+settings:
+  screenshot_format: "png"
+  quality: 80
+  enable_metrics: true
+  log_level: "info"

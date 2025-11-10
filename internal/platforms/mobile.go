@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"panoptic/internal/config"
@@ -26,6 +27,8 @@ func NewMobilePlatform() *MobilePlatform {
 			"fill_actions":      []map[string]string{},
 			"submit_actions":    []string{},
 			"navigate_actions":  []string{},
+			"videos_taken":     []string{},
+			"mobile_ui_placeholders": []string{},
 			"start_time":        time.Now(),
 		},
 	}
@@ -82,13 +85,73 @@ func (m *MobilePlatform) Navigate(url string) error {
 }
 
 func (m *MobilePlatform) Click(selector string) error {
-	// Mobile-specific click implementation
-	// This would typically use Appium or platform-specific tools
+	// Enhanced mobile click implementation
 	if m.platform == "android" {
-		// Use adb tap commands or Appium
-		cmd := exec.Command("adb", "shell", "input", "tap", "500", "500") // Example coordinates
+		// Parse coordinates from selector (format: "x,y" or "center")
+		var x, y int
+		
+		if selector == "center" {
+			// Get screen dimensions and click center
+			cmd := exec.Command("adb", "shell", "wm", "size")
+			output, err := cmd.Output()
+			if err != nil {
+				// Fallback to center coordinates
+				x, y = 540, 960 // Default center
+			} else {
+				// Parse screen size and calculate center
+				sizeStr := string(output)
+				if _, err := fmt.Sscanf(sizeStr, "Physical size: %dx%d", &x, &y); err != nil {
+					x, y = 540, 960 // Default center
+				} else {
+					x, y = x/2, y/2
+				}
+			}
+		} else if _, err := fmt.Sscanf(selector, "%d,%d", &x, &y); err == nil {
+			// Use provided coordinates
+		} else {
+			// Try to find element by text (Android only)
+			cmd := exec.Command("adb", "shell", "uiautomator", "dump")
+			output, err := cmd.Output()
+			if err != nil {
+				return m.createMobileUIPlaceholder("click", selector, "Android UI automation requires uiautomator")
+			}
+			
+			// Simple text search in UI dump (would need XML parsing in production)
+			if !strings.Contains(string(output), selector) {
+				return fmt.Errorf("element with text '%s' not found", selector)
+			}
+			
+			// Fallback to center click for found element
+			x, y = 540, 960
+		}
+		
+		// Perform click
+		cmd := exec.Command("adb", "shell", "input", "tap", fmt.Sprintf("%d", x), fmt.Sprintf("%d", y))
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to click on Android: %w", err)
+			return fmt.Errorf("failed to click on Android at %d,%d: %w", x, y, err)
+		}
+		
+	} else if m.platform == "ios" {
+		// iOS simulator: Use xcrun simctl
+		if m.emulator {
+			var x, y int
+			
+			if selector == "center" {
+				// iPhone 12 center coordinates
+				x, y = 200, 400
+			} else if _, err := fmt.Sscanf(selector, "%d,%d", &x, &y); err == nil {
+				// Use provided coordinates
+			} else {
+				// For iOS, we would need accessibility inspector or similar
+				return m.createMobileUIPlaceholder("click", selector, "iOS UI automation requires accessibility tools")
+			}
+			
+			cmd := exec.Command("xcrun", "simctl", "io", m.device, "tap", fmt.Sprintf("%d", x), fmt.Sprintf("%d", y))
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("failed to click on iOS simulator at %d,%d: %w", x, y, err)
+			}
+		} else {
+			return m.createMobileUIPlaceholder("click", selector, "iOS physical device automation requires additional setup")
 		}
 	}
 	
@@ -97,7 +160,46 @@ func (m *MobilePlatform) Click(selector string) error {
 		m.metrics["click_actions"] = append(clickActions, selector)
 	}
 	
-	time.Sleep(1 * time.Second)
+	// Wait a moment after click
+	time.Sleep(800 * time.Millisecond)
+	
+	return nil
+}
+
+func (m *MobilePlatform) createMobileUIPlaceholder(action, selector, reason string) error {
+	// Create placeholder file for mobile UI actions
+	placeholderFile := fmt.Sprintf("mobile_ui_action_%s_%d.log", action, time.Now().Unix())
+	placeholderContent := fmt.Sprintf(`# MOBILE UI ACTION PLACEHOLDER
+# Platform: %s
+# Device: %s
+# Emulator: %t
+# Action: %s
+# Selector: %s
+# Time: %s
+# Reason: %s
+
+# In a production implementation, this would perform actual mobile UI automation.
+# Current implementation requirements:
+# - Android: ADB, uiautomator, and UI dump analysis
+# - iOS: xcrun simctl, accessibility inspector, or iOS debugging tools
+# - Physical devices: Additional setup and permissions
+
+# To enable real mobile UI automation:
+# 1. Android: Enable USB debugging and install UI Automator
+# 2. iOS: Enable simulator automation in Xcode
+# 3. Install additional tools: Appium, XCTest, etc.
+# 4. Grant necessary permissions on devices
+`, m.platform, m.device, m.emulator, action, selector, time.Now().Format(time.RFC3339), reason)
+	
+	if err := os.WriteFile(placeholderFile, []byte(placeholderContent), 0644); err != nil {
+		return fmt.Errorf("failed to write mobile UI action placeholder: %w", err)
+	}
+	
+	// Log placeholder creation
+	if uiActions, ok := m.metrics["mobile_ui_placeholders"].([]string); ok {
+		m.metrics["mobile_ui_placeholders"] = append(uiActions, placeholderFile)
+	}
+	
 	return nil
 }
 

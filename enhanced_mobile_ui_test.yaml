@@ -1,0 +1,32 @@
+name: "Enhanced Mobile UI Test"
+output: "./enhanced_mobile_ui_test_output"
+
+apps:
+  - name: "Enhanced Android UI Test"
+    type: "mobile"
+    platform: "android"
+    emulator: true
+    device: "emulator-5554"
+    timeout: 10
+
+actions:
+  - name: "enhanced_click_center"
+    type: "click"
+    selector: "center"
+    
+  - name: "wait_after_click"
+    type: "wait"
+    wait_time: 2
+    
+  - name: "enhanced_click_coords"
+    type: "click"
+    selector: "300,500"
+    
+  - name: "take_screenshot"
+    type: "screenshot"
+
+settings:
+  screenshot_format: "png"
+  quality: 80
+  enable_metrics: true
+  log_level: "info"

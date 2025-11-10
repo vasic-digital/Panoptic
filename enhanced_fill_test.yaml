@@ -1,0 +1,30 @@
+name: "Enhanced Fill UI Test"
+output: "./enhanced_fill_test_output"
+
+apps:
+  - name: "Enhanced Fill Web Test"
+    type: "web"
+    url: "https://example.com"
+    timeout: 10
+
+actions:
+  - name: "take_initial_screenshot"
+    type: "screenshot"
+    
+  - name: "enhanced_fill"
+    type: "fill"
+    selector: "body"
+    value: "test input"
+    
+  - name: "wait_after_fill"
+    type: "wait"
+    wait_time: 2
+    
+  - name: "take_final_screenshot"
+    type: "screenshot"
+
+settings:
+  screenshot_format: "png"
+  quality: 80
+  enable_metrics: true
+  log_level: "info"
