@@ -1,0 +1,41 @@
+name: "AI-Enhanced Testing Demo"
+output: "./ai_enhanced_testing_output"
+
+apps:
+  - name: "AI Enhanced Web Test"
+    type: "web"
+    url: "https://example.com"
+    timeout: 15
+
+actions:
+  - name: "navigate_to_page"
+    type: "navigate"
+    value: "https://example.com"
+    
+  - name: "wait_for_load"
+    type: "wait"
+    wait_time: 3
+    
+  - name: "ai_enhanced_testing"
+    type: "ai_enhanced_testing"
+    
+  - name: "take_screenshot"
+    type: "screenshot"
+    
+  - name: "final_wait"
+    type: "wait"
+    wait_time: 2
+
+settings:
+  screenshot_format: "png"
+  quality: 90
+  enable_metrics: true
+  log_level: "info"
+  ai_testing:
+    enable_error_detection: true
+    enable_test_generation: true
+    enable_vision_analysis: true
+    smart_error_recovery: true
+    adaptive_test_priority: true
+    confidence_threshold: 0.7
+    max_generated_tests: 15

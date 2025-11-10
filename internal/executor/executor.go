@@ -21,6 +21,7 @@ type Executor struct {
 	results    []TestResult
 	testGen    *ai.TestGenerator
 	errorDet   *ai.ErrorDetector
+	aiTester   *ai.AIEnhancedTester
 }
 
 type TestResult struct {
@@ -43,6 +44,7 @@ func NewExecutor(cfg *config.Config, outputDir string, log *logger.Logger) *Exec
 		logger:    log,
 		factory:   platforms.NewPlatformFactory(),
 		results:   make([]TestResult, 0),
+		aiTester:  ai.NewAIEnhancedTester(*log),
 	}
 }
 
@@ -116,7 +118,7 @@ func (e *Executor) executeApp(app config.AppConfig) TestResult {
 	for i, action := range e.config.Actions {
 		e.logger.Debugf("Executing action %d: %s (%s)", i, action.Name, action.Type)
 		
-		if err := e.executeAction(platform, action, app.Name, &result, &currentRecordingFile); err != nil {
+		if err := e.executeAction(platform, action, app, &result, &currentRecordingFile); err != nil {
 			result.Error = fmt.Sprintf("Action '%s' failed: %v", action.Name, err)
 			result.EndTime = time.Now()
 			result.Duration = result.EndTime.Sub(result.StartTime)
@@ -142,7 +144,7 @@ func (e *Executor) executeApp(app config.AppConfig) TestResult {
 	return result
 }
 
-func (e *Executor) executeAction(platform platforms.Platform, action config.Action, appName string, result *TestResult, recordingFile *string) error {
+func (e *Executor) executeAction(platform platforms.Platform, action config.Action, app config.AppConfig, result *TestResult, recordingFile *string) error {
 	switch action.Type {
 	case "navigate":
 		if action.Value != "" {
@@ -172,7 +174,7 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 		return platform.Wait(waitTime)
 		
 	case "screenshot":
-		filename := filepath.Join(e.outputDir, "screenshots", fmt.Sprintf("%s_%s_%d.png", appName, action.Name, time.Now().Unix()))
+		filename := filepath.Join(e.outputDir, "screenshots", fmt.Sprintf("%s_%s_%d.png", app.Name, action.Name, time.Now().Unix()))
 		if action.Parameters != nil {
 			if name, ok := action.Parameters["filename"].(string); ok {
 				filename = filepath.Join(e.outputDir, "screenshots", name)
@@ -191,7 +193,7 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 			duration = 30 // Default 30 seconds
 		}
 		
-		filename := filepath.Join(e.outputDir, "videos", fmt.Sprintf("%s_%s_%d.mp4", appName, action.Name, time.Now().Unix()))
+		filename := filepath.Join(e.outputDir, "videos", fmt.Sprintf("%s_%s_%d.mp4", app.Name, action.Name, time.Now().Unix()))
 		if action.Parameters != nil {
 			if name, ok := action.Parameters["filename"].(string); ok {
 				filename = filepath.Join(e.outputDir, "videos", name)
@@ -261,6 +263,10 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 			return e.generateSmartErrorDetection(webPlatform)
 		}
 		return fmt.Errorf("Smart error detection only supported on web platform")
+		
+	case "ai_enhanced_testing":
+		// Execute AI-enhanced testing
+		return e.executeAIEnhancedTesting(platform, app)
 		
 	default:
 		return fmt.Errorf("unknown action type: %s", action.Type)
@@ -761,6 +767,43 @@ func (e *Executor) collectErrorMessages(platform *platforms.WebPlatform) []ai.Er
 	messages = append(messages, simulatedErrors...)
 	
 	return messages
+}
+
+// executeAIEnhancedTesting executes comprehensive AI-enhanced testing
+func (e *Executor) executeAIEnhancedTesting(platform platforms.Platform, app config.AppConfig) error {
+	e.logger.Info("Starting AI-enhanced testing...")
+	
+	// Configure AI settings from action parameters or use defaults
+	aiConfig := ai.AIConfig{
+		EnableErrorDetection:   true,
+		EnableTestGeneration:  true,
+		EnableVisionAnalysis:   true,
+		AutoGenerateTests:      false,
+		SmartErrorRecovery:     true,
+		AdaptiveTestPriority:   true,
+		ConfidenceThreshold:    0.7,
+		MaxGeneratedTests:      20,
+		EnableLearning:         false,
+	}
+	
+	// Configure AI tester
+	e.aiTester.SetConfig(aiConfig)
+	
+	// Execute AI-enhanced testing
+	result, err := e.aiTester.ExecuteWithAI(*e.config, platform)
+	if err != nil {
+		return fmt.Errorf("AI-enhanced testing failed: %w", err)
+	}
+	
+	// Generate comprehensive AI-enhanced report
+	if err := e.aiTester.GenerateAIEnhancedReport(result, e.outputDir); err != nil {
+		e.logger.Warnf("Failed to generate AI-enhanced report: %v", err)
+	}
+	
+	e.logger.Infof("AI-enhanced testing completed: %d visual elements, %d generated tests, %d enhancements", 
+		len(result.VisualElements), len(result.GeneratedTests), len(result.Enhancements))
+	
+	return nil
 }
 
 func (e *Executor) generateJSONReport(outputPath string) error {

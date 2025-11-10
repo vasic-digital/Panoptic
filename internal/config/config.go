@@ -50,6 +50,21 @@ type Settings struct {
 	MobileDevice     string `yaml:"mobile_device"`
 	EnableMetrics    bool   `yaml:"enable_metrics"`
 	LogLevel         string `yaml:"log_level"`
+	
+	// AI-Enhanced Testing Settings
+	AITesting        *AITestingSettings `yaml:"ai_testing,omitempty"`
+}
+
+type AITestingSettings struct {
+	EnableErrorDetection   bool    `yaml:"enable_error_detection"`
+	EnableTestGeneration  bool    `yaml:"enable_test_generation"`
+	EnableVisionAnalysis   bool    `yaml:"enable_vision_analysis"`
+	AutoGenerateTests      bool    `yaml:"auto_generate_tests"`
+	SmartErrorRecovery     bool    `yaml:"smart_error_recovery"`
+	AdaptiveTestPriority   bool    `yaml:"adaptive_test_priority"`
+	ConfidenceThreshold    float64 `yaml:"confidence_threshold"`
+	MaxGeneratedTests      int     `yaml:"max_generated_tests"`
+	EnableLearning         bool    `yaml:"enable_learning"`
 }
 
 func Load(configFile string) (*Config, error) {
