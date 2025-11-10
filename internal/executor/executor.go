@@ -242,48 +242,315 @@ func (e *Executor) generateHTMLReport() string {
 <head>
     <title>Panoptic Test Report</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .header { background: #f0f0f0; padding: 20px; border-radius: 5px; }
-        .app-result { margin: 20px 0; border: 1px solid #ddd; border-radius: 5px; }
-        .app-header { background: #e8e8e8; padding: 15px; font-weight: bold; }
-        .app-content { padding: 15px; }
-        .success { color: green; }
-        .failure { color: red; }
-        .metrics { margin: 10px 0; }
-        .screenshot { max-width: 200px; margin: 5px; border: 1px solid #ccc; }
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: #f8f9fa;
+        }
+        .header { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            padding: 30px; 
+            border-radius: 10px; 
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .summary-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+            border-left: 4px solid #007bff;
+        }
+        .card-value {
+            font-size: 2.2em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .card-label {
+            color: #666;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .app-result { 
+            margin: 20px 0; 
+            border: 1px solid #e0e0e0; 
+            border-radius: 10px;
+            background: white;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .app-result:hover {
+            transform: translateY(-2px);
+        }
+        .app-header { 
+            background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%); 
+            padding: 20px; 
+            font-weight: bold;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .app-content { 
+            padding: 20px; 
+        }
+        .success { color: #28a745; font-weight: bold; }
+        .failure { color: #dc3545; font-weight: bold; }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-failure {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .metrics { 
+            margin: 10px 0; 
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 3px solid #007bff;
+        }
+        .screenshot { 
+            max-width: 200px; 
+            margin: 8px; 
+            border: 2px solid #e0e0e0; 
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .screenshot:hover {
+            transform: scale(1.05);
+            border-color: #007bff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .video-item {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 5px;
+            margin: 8px 0;
+            border-left: 4px solid #28a745;
+            transition: background 0.2s;
+        }
+        .video-item:hover {
+            background: #e9ecef;
+        }
+        table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            margin: 10px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        th, td { 
+            border: 1px solid #e0e0e0; 
+            padding: 12px; 
+            text-align: left; 
+        }
+        th { 
+            background-color: #f8f9fa; 
+            font-weight: 600;
+            color: #495057;
+        }
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        .collapsible {
+            background: #f8f9fa;
+            color: #333;
+            cursor: pointer;
+            padding: 15px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 16px;
+            border-radius: 5px;
+            margin: 5px 0;
+            transition: background 0.3s;
+            border-left: 4px solid #007bff;
+        }
+        .collapsible:hover {
+            background: #e9ecef;
+        }
+        .collapsible.active {
+            background: #007bff;
+            color: white;
+        }
+        .content {
+            padding: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .content.show {
+            max-height: 2000px;
+            padding: 15px 0;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .metric-item {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+        }
+        .metric-value {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .metric-key {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>Panoptic Test Report</h1>
+        <h1>Panoptic Enhanced Test Report</h1>
         <p>Generated: ` + time.Now().Format(time.RFC3339) + `</p>
         <p>Total Applications: ` + fmt.Sprintf("%d", len(e.results)) + `</p>
-    </div>
-`
+    </div>`
+    
+    // Add summary cards
+    html += e.generateSummarySection()
+    
+    // Add detailed results (enhanced)
+    html += e.generateDetailedResults()
 
+    html += `
+    <script>
+        const coll = document.getElementsByClassName('collapsible');
+        for (let i = 0; i < coll.length; i++) {
+            coll[i].addEventListener('click', function() {
+                this.classList.toggle('active');
+                const content = this.nextElementSibling;
+                content.classList.toggle('show');
+            });
+        }
+    </script>
+</body>
+</html>`
+
+	return html
+}
+
+func (e *Executor) generateSummarySection() string {
+	successCount := 0
+	failureCount := 0
+	totalDuration := time.Duration(0)
+	totalScreenshots := 0
+	totalVideos := 0
+	
 	for _, result := range e.results {
-		status := "success"
-		statusClass := "success"
+		if result.Success {
+			successCount++
+		} else {
+			failureCount++
+		}
+		totalDuration += result.Duration
+		totalScreenshots += len(result.Screenshots)
+		totalVideos += len(result.Videos)
+	}
+	
+	successRate := float64(successCount) / float64(len(e.results)) * 100
+	
+	html := `
+    <div class="summary-cards">
+        <div class="summary-card">
+            <div class="card-value">` + fmt.Sprintf("%d", len(e.results)) + `</div>
+            <div class="card-label">Total Apps</div>
+        </div>
+        <div class="summary-card">
+            <div class="card-value">` + fmt.Sprintf("%.1f%%", successRate) + `</div>
+            <div class="card-label">Success Rate</div>
+        </div>
+        <div class="summary-card">
+            <div class="card-value">` + totalDuration.Truncate(time.Second).String() + `</div>
+            <div class="card-label">Total Duration</div>
+        </div>
+        <div class="summary-card">
+            <div class="card-value">` + fmt.Sprintf("%d", totalScreenshots) + `</div>
+            <div class="card-label">Screenshots</div>
+        </div>
+        <div class="summary-card">
+            <div class="card-value">` + fmt.Sprintf("%d", totalVideos) + `</div>
+            <div class="card-label">Videos</div>
+        </div>
+    </div>`
+	
+	return html
+}
+
+func (e *Executor) generateDetailedResults() string {
+	html := `<h3>Detailed Results</h3>`
+	
+	for _, result := range e.results {
+		status := "Success"
+		statusClass := "status-success"
 		if !result.Success {
-			status = "failed"
-			statusClass = "failure"
+			status = "Failed"
+			statusClass = "status-failure"
 		}
 		
 		html += `
-    <div class="app-result">
-        <div class="app-header">
-            ` + result.AppName + ` (` + result.AppType + `) - <span class="` + statusClass + `">` + status + `</span>
-        </div>
+    <button class="collapsible">
+        <span style="font-size: 1.2em; font-weight: bold;">` + result.AppName + `</span>
+        <span class="status-badge ` + statusClass + `">` + status + `</span>
+        <span class="card-label">` + result.AppType + ` | ` + result.Duration.String() + `</span>
+    </button>
+    <div class="content">
         <div class="app-content">
-            <p><strong>Duration:</strong> ` + result.Duration.String() + `</p>
-            <p><strong>Start Time:</strong> ` + result.StartTime.Format(time.RFC3339) + `</p>
-            <p><strong>End Time:</strong> ` + result.EndTime.Format(time.RFC3339) + `</p>`
+            <div class="metrics-grid">
+                <div class="metric-item">
+                    <div class="metric-value">` + result.StartTime.Format("15:04:05") + `</div>
+                    <div class="metric-key">Start Time</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">` + result.EndTime.Format("15:04:05") + `</div>
+                    <div class="metric-key">End Time</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">` + result.Duration.String() + `</div>
+                    <div class="metric-key">Duration</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">` + fmt.Sprintf("%d", len(result.Screenshots)) + `</div>
+                    <div class="metric-key">Screenshots</div>
+                </div>
+            </div>`
 		
 		if result.Error != "" {
-			html += `<p><strong>Error:</strong> ` + result.Error + `</p>`
+			html += `<div class="metrics"><strong>Error:</strong> ` + result.Error + `</div>`
 		}
 		
 		if len(result.Screenshots) > 0 {
@@ -294,11 +561,10 @@ func (e *Executor) generateHTMLReport() string {
 		}
 		
 		if len(result.Videos) > 0 {
-			html += `<h4>Videos:</h4><ul>`
+			html += `<h4>Videos:</h4>`
 			for _, video := range result.Videos {
-				html += `<li><a href="` + filepath.Base(video) + `">` + filepath.Base(video) + `</a></li>`
+				html += `<div class="video-item"><a href="` + filepath.Base(video) + `" target="_blank">` + filepath.Base(video) + `</a></div>`
 			}
-			html += `</ul>`
 		}
 		
 		if len(result.Metrics) > 0 {
@@ -309,13 +575,10 @@ func (e *Executor) generateHTMLReport() string {
 			html += `</table>`
 		}
 		
-		html += `</div></div>`
+		html += `</div>
+    </div>`
 	}
-
-	html += `
-</body>
-</html>`
-
+	
 	return html
 }
 

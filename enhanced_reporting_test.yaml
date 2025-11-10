@@ -1,0 +1,31 @@
+name: "Enhanced Reporting Test"
+output: "./enhanced_reporting_test_output"
+
+apps:
+  - name: "Web Enhanced Reporting Test"
+    type: "web"
+    url: "https://example.com"
+    timeout: 10
+
+  - name: "Desktop Enhanced Reporting Test"
+    type: "desktop"
+    path: "/Applications/Google Chrome.app"
+    timeout: 10
+
+actions:
+  - name: "test_web_click"
+    type: "click"
+    selector: "body"
+    
+  - name: "test_wait"
+    type: "wait"
+    wait_time: 1
+    
+  - name: "take_screenshot"
+    type: "screenshot"
+
+settings:
+  screenshot_format: "png"
+  quality: 80
+  enable_metrics: true
+  log_level: "info"
