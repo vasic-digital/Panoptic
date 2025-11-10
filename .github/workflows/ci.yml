@@ -88,6 +88,8 @@ jobs:
     name: Unit Tests
     runs-on: ubuntu-latest
     needs: quality-checks
+    # Only run if test_type is 'all', 'unit', or if not specified (defaults to 'all')
+    if: ${{ github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'unit' || github.event.inputs.test_type == '' }}
     strategy:
       matrix:
         go-version: ['1.20', '1.21', '1.22']
@@ -142,7 +144,8 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: unit-tests
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    # Only run if test_type is 'all', 'integration', or if not specified
+    if: ${{ github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'integration' || github.event.inputs.test_type == '' }}
     services:
       # Start test services
       httpbin:
@@ -187,7 +190,8 @@ jobs:
     name: End-to-End Tests
     runs-on: ubuntu-latest
     needs: integration-tests
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Only run if test_type is 'all', 'e2e', or if not specified and environment is development/staging
+    if: ${{ (github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'e2e' || github.event.inputs.test_type == '') && (github.event.inputs.environment == 'development' || github.event.inputs.environment == 'staging' || github.event.inputs.environment == '') }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -232,7 +236,8 @@ jobs:
     name: Security Tests
     runs-on: ubuntu-latest
     needs: unit-tests
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    # Only run if test_type is 'all', 'security', or if not specified
+    if: ${{ github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'security' || github.event.inputs.test_type == '' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -276,7 +281,8 @@ jobs:
     name: Performance Tests
     runs-on: ubuntu-latest
     needs: integration-tests
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Only run if test_type is 'all', 'performance', or if not specified and environment is development/staging
+    if: ${{ (github.event.inputs.test_type == 'all' || github.event.inputs.test_type == 'performance' || github.event.inputs.test_type == '') && (github.event.inputs.environment == 'development' || github.event.inputs.environment == 'staging' || github.event.inputs.environment == '') }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -394,7 +400,8 @@ jobs:
     name: Docker Build
     runs-on: ubuntu-latest
     needs: build-and-package
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Only run if test_type is 'all' or if not specified and environment is production
+    if: ${{ (github.event.inputs.test_type == 'all' || github.event.inputs.test_type == '') && github.event.inputs.environment == 'production' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -436,7 +443,8 @@ jobs:
     name: Create Release
     runs-on: ubuntu-latest
     needs: [build-and-package, security-tests, performance-tests]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    # Only run if test_type is 'all' or if not specified and this is a tag push
+    if: ${{ (github.event.inputs.test_type == 'all' || github.event.inputs.test_type == '') && startsWith(github.ref, 'refs/tags/') }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -459,7 +467,8 @@ jobs:
     name: Update Documentation
     runs-on: ubuntu-latest
     needs: [unit-tests, integration-tests]
-    if: github.ref == 'refs/heads/main'
+    # Only run if test_type is 'all' or if not specified
+    if: ${{ github.event.inputs.test_type == 'all' || github.event.inputs.test_type == '' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
