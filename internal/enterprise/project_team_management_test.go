@@ -649,6 +649,258 @@ func TestTeam_Structure(t *testing.T) {
 	assert.Equal(t, 1, len(team.ProjectIDs))
 }
 
+// ============================================================================
+// HELPER FUNCTION TESTS
+// ============================================================================
+
+// TestCanAccessProject tests project access control
+func TestCanAccessProject(t *testing.T) {
+	log := logger.NewLogger(false)
+	manager := &EnterpriseManager{
+		Logger:   *log,
+		Projects: make(map[string]*Project),
+		Teams:    make(map[string]*Team),
+		Users:    make(map[string]*User),
+	}
+
+	pm := NewProjectManagement(manager)
+
+	// Create test project
+	manager.Projects["project-1"] = &Project{
+		ID:        "project-1",
+		OwnerID:   "owner-1",
+		MemberIDs: []string{"member-1", "member-2"},
+		TeamIDs:   []string{"team-1"},
+	}
+
+	// Create test team
+	manager.Teams["team-1"] = &Team{
+		ID:        "team-1",
+		MemberIDs: []string{"team-member-1"},
+	}
+
+	tests := []struct {
+		name      string
+		projectID string
+		userID    string
+		expected  bool
+	}{
+		{"Owner can access", "project-1", "owner-1", true},
+		{"Member can access", "project-1", "member-1", true},
+		{"Team member can access", "project-1", "team-member-1", true},
+		{"Non-member cannot access", "project-1", "random-user", false},
+		{"Non-existent project", "non-existent", "owner-1", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := pm.canAccessProject(context.Background(), tt.projectID, tt.userID)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestCanAccessTeam tests team access control
+func TestCanAccessTeam(t *testing.T) {
+	log := logger.NewLogger(false)
+	manager := &EnterpriseManager{
+		Logger: *log,
+		Teams:  make(map[string]*Team),
+	}
+
+	tm := NewTeamManagement(manager)
+
+	// Create test team
+	manager.Teams["team-1"] = &Team{
+		ID:        "team-1",
+		LeadID:    "lead-1",
+		MemberIDs: []string{"member-1", "member-2"},
+	}
+
+	tests := []struct {
+		name     string
+		teamID   string
+		userID   string
+		expected bool
+	}{
+		{"Lead can access", "team-1", "lead-1", true},
+		{"Member can access", "team-1", "member-1", true},
+		{"Non-member cannot access", "team-1", "random-user", false},
+		{"Non-existent team", "non-existent", "lead-1", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tm.canAccessTeam(context.Background(), tt.teamID, tt.userID)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestGetUsernameByID tests username retrieval by ID
+func TestGetUsernameByID(t *testing.T) {
+	log := logger.NewLogger(false)
+	manager := &EnterpriseManager{
+		Logger: *log,
+		Users:  make(map[string]*User),
+	}
+
+	tm := NewTeamManagement(manager)
+
+	// Add test users
+	manager.Users["user1"] = &User{
+		ID:       "user-id-1",
+		Username: "john_doe",
+	}
+	manager.Users["user2"] = &User{
+		ID:       "user-id-2",
+		Username: "jane_smith",
+	}
+
+	tests := []struct {
+		name     string
+		userID   string
+		expected string
+	}{
+		{"Existing user 1", "user-id-1", "john_doe"},
+		{"Existing user 2", "user-id-2", "jane_smith"},
+		{"Non-existent user", "non-existent", "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tm.getUsername(tt.userID)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestAppendUnique tests unique append functionality
+func TestAppendUnique(t *testing.T) {
+	tests := []struct {
+		name     string
+		slice    []string
+		item     string
+		expected []string
+	}{
+		{"Append to empty slice", []string{}, "item1", []string{"item1"}},
+		{"Append new item", []string{"item1"}, "item2", []string{"item1", "item2"}},
+		{"Duplicate item", []string{"item1", "item2"}, "item1", []string{"item1", "item2"}},
+		{"Multiple duplicates", []string{"a", "b", "c"}, "b", []string{"a", "b", "c"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := appendUnique(tt.slice, tt.item)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestUpdateUserProjects tests user project list updates
+func TestUpdateUserProjects(t *testing.T) {
+	log := logger.NewLogger(false)
+	manager := &EnterpriseManager{
+		Logger: *log,
+		Users:  make(map[string]*User),
+	}
+
+	// Create test user
+	manager.Users["user-1"] = &User{
+		ID:         "user-1",
+		Username:   "testuser",
+		ProjectIDs: []string{},
+		UpdatedAt:  time.Now().Add(-1 * time.Hour),
+	}
+
+	oldTime := manager.Users["user-1"].UpdatedAt
+
+	// Update user projects
+	manager.updateUserProjects("user-1", "project-1")
+
+	assert.Equal(t, 1, len(manager.Users["user-1"].ProjectIDs))
+	assert.Contains(t, manager.Users["user-1"].ProjectIDs, "project-1")
+	assert.True(t, manager.Users["user-1"].UpdatedAt.After(oldTime))
+
+	// Add duplicate project
+	manager.updateUserProjects("user-1", "project-1")
+	assert.Equal(t, 1, len(manager.Users["user-1"].ProjectIDs))
+
+	// Update non-existent user
+	manager.updateUserProjects("non-existent", "project-1")
+	assert.Nil(t, manager.Users["non-existent"])
+}
+
+// TestUpdateUserTeams tests user team list updates
+func TestUpdateUserTeams(t *testing.T) {
+	log := logger.NewLogger(false)
+	manager := &EnterpriseManager{
+		Logger: *log,
+		Users:  make(map[string]*User),
+	}
+
+	// Create test user
+	manager.Users["user-1"] = &User{
+		ID:        "user-1",
+		Username:  "testuser",
+		TeamIDs:   []string{},
+		UpdatedAt: time.Now().Add(-1 * time.Hour),
+	}
+
+	oldTime := manager.Users["user-1"].UpdatedAt
+
+	// Update user teams
+	manager.updateUserTeams("user-1", "team-1")
+
+	assert.Equal(t, 1, len(manager.Users["user-1"].TeamIDs))
+	assert.Contains(t, manager.Users["user-1"].TeamIDs, "team-1")
+	assert.True(t, manager.Users["user-1"].UpdatedAt.After(oldTime))
+
+	// Add duplicate team
+	manager.updateUserTeams("user-1", "team-1")
+	assert.Equal(t, 1, len(manager.Users["user-1"].TeamIDs))
+
+	// Update non-existent user
+	manager.updateUserTeams("non-existent", "team-1")
+	assert.Nil(t, manager.Users["non-existent"])
+}
+
+// TestRemoveUserTeam tests removing team from user
+func TestRemoveUserTeam(t *testing.T) {
+	log := logger.NewLogger(false)
+	manager := &EnterpriseManager{
+		Logger: *log,
+		Users:  make(map[string]*User),
+	}
+
+	// Create test user with teams
+	manager.Users["user-1"] = &User{
+		ID:        "user-1",
+		Username:  "testuser",
+		TeamIDs:   []string{"team-1", "team-2", "team-3"},
+		UpdatedAt: time.Now().Add(-1 * time.Hour),
+	}
+
+	oldTime := manager.Users["user-1"].UpdatedAt
+
+	// Remove team
+	manager.removeUserTeam("user-1", "team-2")
+
+	assert.Equal(t, 2, len(manager.Users["user-1"].TeamIDs))
+	assert.NotContains(t, manager.Users["user-1"].TeamIDs, "team-2")
+	assert.Contains(t, manager.Users["user-1"].TeamIDs, "team-1")
+	assert.Contains(t, manager.Users["user-1"].TeamIDs, "team-3")
+	assert.True(t, manager.Users["user-1"].UpdatedAt.After(oldTime))
+
+	// Remove non-existent team
+	manager.removeUserTeam("user-1", "team-99")
+	assert.Equal(t, 2, len(manager.Users["user-1"].TeamIDs))
+
+	// Remove from non-existent user
+	manager.removeUserTeam("non-existent", "team-1")
+	assert.Nil(t, manager.Users["non-existent"])
+}
+
 // Helper functions
 func generateTestName(prefix string, i int) string {
 	return fmt.Sprintf("%s %d", prefix, i)

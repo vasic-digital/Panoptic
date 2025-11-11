@@ -420,7 +420,47 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 	case "enterprise_status":
 		// Get enterprise status
 		return e.executeEnterpriseStatus(app, action)
-		
+
+	case "user_create":
+		// Create enterprise user
+		return e.executeEnterpriseAction(app, action, "user_create")
+
+	case "user_authenticate":
+		// Authenticate enterprise user
+		return e.executeEnterpriseAction(app, action, "user_authenticate")
+
+	case "project_create":
+		// Create enterprise project
+		return e.executeEnterpriseAction(app, action, "project_create")
+
+	case "team_create":
+		// Create enterprise team
+		return e.executeEnterpriseAction(app, action, "team_create")
+
+	case "api_key_create":
+		// Create API key
+		return e.executeEnterpriseAction(app, action, "api_key_create")
+
+	case "audit_report":
+		// Generate audit report
+		return e.executeEnterpriseAction(app, action, "audit_report")
+
+	case "compliance_check":
+		// Check compliance status
+		return e.executeEnterpriseAction(app, action, "compliance_check")
+
+	case "license_info":
+		// Get license information
+		return e.executeEnterpriseAction(app, action, "license_info")
+
+	case "backup_data":
+		// Backup enterprise data
+		return e.executeEnterpriseAction(app, action, "backup_data")
+
+	case "cleanup_data":
+		// Cleanup enterprise data
+		return e.executeEnterpriseAction(app, action, "cleanup_data")
+
 	default:
 		return fmt.Errorf("unknown action type: %s", action.Type)
 	}
@@ -449,6 +489,62 @@ func (e *Executor) executeEnterpriseStatus(app config.AppConfig, action config.A
 			enterpriseStatus["total_users"], enterpriseStatus["total_projects"])
 	}
 	
+	return nil
+}
+
+// executeEnterpriseAction executes a generic enterprise action
+func (e *Executor) executeEnterpriseAction(app config.AppConfig, action config.Action, actionType string) error {
+	e.logger.Infof("Executing enterprise action: %s...", actionType)
+
+	if !e.enterpriseIntegration.Initialized {
+		return fmt.Errorf("enterprise integration is not initialized")
+	}
+
+	// Execute the enterprise action
+	result, err := e.enterpriseIntegration.ExecuteEnterpriseAction(context.Background(), actionType, action.Parameters)
+	if err != nil {
+		return fmt.Errorf("failed to execute enterprise action %s: %w", actionType, err)
+	}
+
+	// Log the result
+	e.logger.Infof("Enterprise action %s completed successfully", actionType)
+	e.logger.Debugf("Result: %+v", result)
+
+	// Save result to file if output path is specified
+	if action.Parameters != nil {
+		if outputPath, ok := action.Parameters["output"].(string); ok && outputPath != "" {
+			if err := e.saveEnterpriseActionResult(actionType, result, outputPath); err != nil {
+				e.logger.Warnf("Failed to save enterprise action result: %v", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// saveEnterpriseActionResult saves enterprise action result to file
+func (e *Executor) saveEnterpriseActionResult(actionType string, result interface{}, outputPath string) error {
+	// Create full output path
+	fullPath := filepath.Join(e.outputDir, outputPath)
+
+	// Ensure directory exists
+	dir := filepath.Dir(fullPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	// Marshal result to JSON
+	data, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal result: %w", err)
+	}
+
+	// Write to file
+	if err := os.WriteFile(fullPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	e.logger.Infof("Enterprise action %s result saved to: %s", actionType, fullPath)
 	return nil
 }
 

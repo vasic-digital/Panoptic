@@ -148,6 +148,7 @@ The `Executor` (`internal/executor/executor.go`) is the heart of the system:
 - **User/Team Management**: Role-based access control and team collaboration
 - **Audit/Compliance**: Comprehensive audit logging and compliance reporting
 - **API Management**: RESTful API for programmatic access
+- **Supported Actions**: user_create, user_authenticate, project_create, team_create, api_key_create, audit_report, compliance_check, license_info, enterprise_status, backup_data, cleanup_data
 
 #### Computer Vision (`internal/vision`)
 - **Detector** (`detector.go`): Visual element detection and validation in screenshots
@@ -169,12 +170,13 @@ apps:
 
 actions:
   - name: "action_identifier"
-    type: "navigate|click|fill|submit|wait|screenshot|record"
+    type: "navigate|click|fill|submit|wait|screenshot|record|vision_click|vision_report|ai_test_generation|smart_error_detection|ai_enhanced_testing|cloud_sync|cloud_analytics|distributed_test|cloud_cleanup|user_create|user_authenticate|project_create|team_create|api_key_create|audit_report|compliance_check|license_info|enterprise_status|backup_data|cleanup_data"
     selector: "CSS selector or element identifier"
     value: "input value"
     wait_time: 3
     parameters:
       filename: "custom_name.png"
+      output: "path/to/save/result.json"  # For enterprise actions
 
 settings:
   screenshot_format: "png|jpg"

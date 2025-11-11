@@ -1,0 +1,146 @@
+# Enterprise Management Test Configuration
+# This configuration demonstrates all enterprise management features in Panoptic
+
+name: "Enterprise Management Test Suite"
+output: "./output/enterprise"
+
+# Enterprise configuration settings
+settings:
+  enterprise:
+    config_path: "./examples/enterprise_config.yaml"
+
+apps:
+  - name: "Enterprise Management System"
+    type: "web"
+    url: "https://example.com"
+
+# Enterprise Management Actions
+actions:
+  # 1. Create Admin User
+  - name: "create_admin_user"
+    type: "user_create"
+    parameters:
+      username: "admin"
+      email: "admin@example.com"
+      first_name: "Admin"
+      last_name: "User"
+      password: "SecurePassword123!"
+      role: "admin"
+      output: "enterprise/users/admin_user.json"
+
+  # 2. Create Developer User
+  - name: "create_developer"
+    type: "user_create"
+    parameters:
+      username: "developer1"
+      email: "dev@example.com"
+      first_name: "John"
+      last_name: "Developer"
+      password: "DevPass123!"
+      role: "developer"
+      output: "enterprise/users/developer_user.json"
+
+  # 3. Authenticate User
+  - name: "authenticate_user"
+    type: "user_authenticate"
+    parameters:
+      username: "admin"
+      password: "SecurePassword123!"
+      output: "enterprise/auth/session.json"
+
+  # 4. Create Team
+  - name: "create_engineering_team"
+    type: "team_create"
+    parameters:
+      name: "Engineering Team"
+      description: "Core engineering team for product development"
+      lead_id: "admin"
+      output: "enterprise/teams/engineering_team.json"
+
+  # 5. Create Project
+  - name: "create_web_project"
+    type: "project_create"
+    parameters:
+      name: "Web Application"
+      description: "Main web application project"
+      owner_id: "admin"
+      team_ids:
+        - "engineering-team"
+      output: "enterprise/projects/web_project.json"
+
+  # 6. Create API Key
+  - name: "create_api_key"
+    type: "api_key_create"
+    parameters:
+      name: "CI/CD Pipeline Key"
+      user_id: "admin"
+      permissions:
+        - "read"
+        - "write"
+        - "execute"
+      rate_limit: 1000
+      output: "enterprise/api/api_key.json"
+
+  # 7. Generate Audit Report
+  - name: "generate_audit_report"
+    type: "audit_report"
+    parameters:
+      start_date: "2025-01-01T00:00:00Z"
+      end_date: "2025-12-31T23:59:59Z"
+      action_types:
+        - "user_created"
+        - "user_login"
+        - "project_created"
+      user_ids:
+        - "admin"
+      output: "enterprise/reports/audit_report.json"
+
+  # 8. Check Compliance Status
+  - name: "check_compliance"
+    type: "compliance_check"
+    parameters:
+      standard: "SOC2"
+      output: "enterprise/compliance/soc2_status.json"
+
+  # 9. Get License Information
+  - name: "get_license_info"
+    type: "license_info"
+    parameters:
+      output: "enterprise/license/license_info.json"
+
+  # 10. Get Enterprise Status
+  - name: "get_enterprise_status"
+    type: "enterprise_status"
+    parameters:
+      output: "enterprise/status/enterprise_status.json"
+
+  # 11. Backup Enterprise Data
+  - name: "backup_enterprise_data"
+    type: "backup_data"
+    parameters:
+      backup_path: "./backups/enterprise"
+      include_users: true
+      include_projects: true
+      include_teams: true
+      include_audit_logs: true
+      output: "enterprise/backup/backup_result.json"
+
+  # 12. Cleanup Old Data
+  - name: "cleanup_old_data"
+    type: "cleanup_data"
+    parameters:
+      retention_days: 90
+      cleanup_sessions: true
+      cleanup_expired_api_keys: true
+      cleanup_old_audit_logs: true
+      output: "enterprise/cleanup/cleanup_result.json"
+
+  # Additional Web Automation Actions (for context)
+  - name: "screenshot_dashboard"
+    type: "screenshot"
+    parameters:
+      filename: "enterprise_dashboard.png"
+
+  - name: "wait_for_processing"
+    type: "wait"
+    wait_time: 2
