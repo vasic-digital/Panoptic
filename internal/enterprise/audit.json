@@ -1,20 +1,19 @@
 [
   {
-    "id": "FqzflTqCxCpDDcXU5l5Fcw",
-    "timestamp": "2025-11-10T21:46:59.246138+03:00",
-    "user_id": "user-456",
-    "username": "unknown",
-    "action": "team.member.remove",
-    "resource": "team",
-    "resource_id": "team-123",
+    "id": "9Dm__ZqphxMU3kVr7WyGTA",
+    "timestamp": "2025-11-11T07:06:03.558389+03:00",
+    "user_id": "user-123",
+    "username": "testuser",
+    "action": "auth.login",
+    "resource": "user",
+    "resource_id": "user-123",
     "details": {
-      "team_name": "Test Team",
-      "user": "unknown"
+      "session_id": "GVliimYY3pz4oiHFfIuWdA"
     },
     "ip_address": "",
     "user_agent": "",
     "success": true,
     "severity": "low",
-    "category": "data"
+    "category": "auth"
   }
 ]
