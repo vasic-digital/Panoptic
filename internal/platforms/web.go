@@ -218,7 +218,7 @@ func (w *WebPlatform) takeScreenshotForVision() (string, error) {
 	
 	// Save to temporary file for vision analysis
 	tempPath := fmt.Sprintf("vision_screenshot_%d.png", time.Now().Unix())
-	if err := os.WriteFile(tempPath, img, 0644); err != nil {
+	if err := os.WriteFile(tempPath, img, 0600); err != nil {
 		return "", fmt.Errorf("failed to save screenshot: %w", err)
 	}
 	
@@ -343,7 +343,7 @@ func (w *WebPlatform) Screenshot(filename string) error {
 		return fmt.Errorf("failed to capture screenshot: %w", err)
 	}
 	
-	if err := os.WriteFile(filename, screenshotData, 0644); err != nil {
+	if err := os.WriteFile(filename, screenshotData, 0600); err != nil {
 		return fmt.Errorf("failed to save screenshot: %w", err)
 	}
 	

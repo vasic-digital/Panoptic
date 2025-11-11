@@ -1,14 +1,14 @@
 [
   {
-    "id": "npKWhgt15ogzyN9ntCwKEQ",
-    "timestamp": "2025-11-11T14:19:41.861911+03:00",
+    "id": "nayCdFmn3gVmGsoYtLToog",
+    "timestamp": "2025-11-11T14:59:03.548824+03:00",
     "user_id": "user-123",
     "username": "testuser",
     "action": "auth.login",
     "resource": "user",
     "resource_id": "user-123",
     "details": {
-      "session_id": "holsVTFItGwqXLHBI8nhNQ"
+      "session_id": "KVhQnlafwABuj-Yxth-dNg"
     },
     "ip_address": "",
     "user_agent": "",

@@ -793,7 +793,7 @@ func (ed *ErrorDetector) GenerateSmartErrorReport(errors []DetectedError, analys
 	// Write to file
 	filename := fmt.Sprintf("%s/smart_error_report.md", outputPath)
 	
-	return os.WriteFile(filename, []byte(content), 0644)
+	return os.WriteFile(filename, []byte(content), 0600)
 }
 
 // formatMap converts map to string representation

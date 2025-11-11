@@ -405,7 +405,7 @@ func (d *DesktopPlatform) createUIActionPlaceholder(action, selector, reason str
 # 3. Linux: Install xdotool and ensure X11 display is accessible
 `, action, selector, time.Now().Format(time.RFC3339), reason)
 	
-	if err := os.WriteFile(placeholderFile, []byte(placeholderContent), 0644); err != nil {
+	if err := os.WriteFile(placeholderFile, []byte(placeholderContent), 0600); err != nil {
 		return fmt.Errorf("failed to write UI action placeholder: %w", err)
 	}
 	

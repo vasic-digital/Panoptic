@@ -540,7 +540,7 @@ func (e *Executor) saveEnterpriseActionResult(actionType string, result interfac
 	}
 
 	// Write to file
-	if err := os.WriteFile(fullPath, data, 0644); err != nil {
+	if err := os.WriteFile(fullPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
@@ -799,7 +799,7 @@ func (e *Executor) executeDistributedCloudTest(app config.AppConfig, action conf
 		return fmt.Errorf("failed to marshal results: %w", err)
 	}
 
-	if err := os.WriteFile(reportPath, data, 0644); err != nil {
+	if err := os.WriteFile(reportPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to save results: %w", err)
 	}
 
@@ -814,7 +814,7 @@ func (e *Executor) saveEnterpriseReport(report interface{}, filePath string) err
 		return fmt.Errorf("failed to marshal enterprise report: %w", err)
 	}
 
-	return os.WriteFile(filePath, data, 0644)
+	return os.WriteFile(filePath, data, 0600)
 }
 
 
@@ -838,5 +838,5 @@ func (e *Executor) GenerateReport(outputPath string) error {
 </body>
 </html>`, time.Now().Format(time.RFC3339), len(e.results))
 
-	return os.WriteFile(outputPath, []byte(report), 0644)
+	return os.WriteFile(outputPath, []byte(report), 0600)
 }

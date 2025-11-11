@@ -409,9 +409,16 @@ func (ed *ElementDetector) ContainsString(text, search string) bool {
 }
 
 // convertToRGBA safely converts any color to RGBA
+// RGBA() returns uint32 values in range 0-65535, we need to convert to uint8 (0-255)
+// by shifting right 8 bits to avoid integer overflow
 func (ed *ElementDetector) convertToRGBA(c color.Color) color.RGBA {
 	r, g, b, a := c.RGBA()
-	return color.RGBA{R: uint8(r), G: uint8(g), B: uint8(b), A: uint8(a)}
+	return color.RGBA{
+		R: uint8(r >> 8),
+		G: uint8(g >> 8),
+		B: uint8(b >> 8),
+		A: uint8(a >> 8),
+	}
 }
 
 // GenerateVisualReport creates a visual report with detected elements
@@ -442,5 +449,5 @@ func (ed *ElementDetector) GenerateVisualReport(elements []ElementInfo, outputPa
 		}
 	}
 	
-	return os.WriteFile(reportPath, []byte(content), 0644)
+	return os.WriteFile(reportPath, []byte(content), 0600)
 }

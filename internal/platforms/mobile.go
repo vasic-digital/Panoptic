@@ -191,7 +191,7 @@ func (m *MobilePlatform) createMobileUIPlaceholder(action, selector, reason stri
 # 4. Grant necessary permissions on devices
 `, m.platform, m.device, m.emulator, action, selector, time.Now().Format(time.RFC3339), reason)
 	
-	if err := os.WriteFile(placeholderFile, []byte(placeholderContent), 0644); err != nil {
+	if err := os.WriteFile(placeholderFile, []byte(placeholderContent), 0600); err != nil {
 		return fmt.Errorf("failed to write mobile UI action placeholder: %w", err)
 	}
 	

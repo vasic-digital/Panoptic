@@ -503,7 +503,7 @@ func (ait *AIEnhancedTester) GenerateAIEnhancedReport(result AIResult, outputPat
 	
 	// Write to file
 	filename := fmt.Sprintf("%s/ai_enhanced_testing_report.md", outputPath)
-	return os.WriteFile(filename, []byte(content), 0644)
+	return os.WriteFile(filename, []byte(content), 0600)
 }
 
 // Helper methods

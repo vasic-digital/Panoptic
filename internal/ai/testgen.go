@@ -615,7 +615,7 @@ func (tg *TestGenerator) GenerateAITestReport(tests []GeneratedTest, analysis Te
 	// Write to file
 	filename := fmt.Sprintf("%s/ai_test_generation_report.md", outputPath)
 	
-	return os.WriteFile(filename, []byte(content), 0644)
+	return os.WriteFile(filename, []byte(content), 0600)
 }
 
 // getElementTypesMap converts element type map to string representation
