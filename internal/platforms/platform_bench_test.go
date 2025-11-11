@@ -4,23 +4,19 @@ import (
 	"testing"
 
 	"panoptic/internal/config"
-	"panoptic/internal/logger"
 )
 
 // Benchmark WebPlatform operations
 
 func BenchmarkNewWebPlatform(b *testing.B) {
-	log := logger.NewLogger(false)
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = NewWebPlatform(log)
+		_ = NewWebPlatform()
 	}
 }
 
 func BenchmarkWebPlatform_MetricsAllocation(b *testing.B) {
-	log := logger.NewLogger(false)
-	platform := NewWebPlatform(log)
+	platform := NewWebPlatform()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -31,7 +27,6 @@ func BenchmarkWebPlatform_MetricsAllocation(b *testing.B) {
 }
 
 func BenchmarkWebPlatform_Initialize(b *testing.B) {
-	log := logger.NewLogger(false)
 	app := config.AppConfig{
 		Name:    "Benchmark App",
 		Type:    "web",
@@ -41,7 +36,7 @@ func BenchmarkWebPlatform_Initialize(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		platform := NewWebPlatform(log)
+		platform := NewWebPlatform()
 		// Note: Actual initialization skipped as it requires browser
 		// This benchmarks the validation and setup logic
 		_ = platform
@@ -52,17 +47,14 @@ func BenchmarkWebPlatform_Initialize(b *testing.B) {
 // Benchmark DesktopPlatform operations
 
 func BenchmarkNewDesktopPlatform(b *testing.B) {
-	log := logger.NewLogger(false)
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = NewDesktopPlatform(log)
+		_ = NewDesktopPlatform()
 	}
 }
 
 func BenchmarkDesktopPlatform_MetricsAllocation(b *testing.B) {
-	log := logger.NewLogger(false)
-	platform := NewDesktopPlatform(log)
+	platform := NewDesktopPlatform()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -73,8 +65,7 @@ func BenchmarkDesktopPlatform_MetricsAllocation(b *testing.B) {
 }
 
 func BenchmarkDesktopPlatform_PathValidation(b *testing.B) {
-	log := logger.NewLogger(false)
-	platform := NewDesktopPlatform(log)
+	platform := NewDesktopPlatform()
 	app := config.AppConfig{
 		Name: "Test App",
 		Type: "desktop",
@@ -92,17 +83,14 @@ func BenchmarkDesktopPlatform_PathValidation(b *testing.B) {
 // Benchmark MobilePlatform operations
 
 func BenchmarkNewMobilePlatform(b *testing.B) {
-	log := logger.NewLogger(false)
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = NewMobilePlatform(log)
+		_ = NewMobilePlatform()
 	}
 }
 
 func BenchmarkMobilePlatform_MetricsAllocation(b *testing.B) {
-	log := logger.NewLogger(false)
-	platform := NewMobilePlatform(log)
+	platform := NewMobilePlatform()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -113,34 +101,30 @@ func BenchmarkMobilePlatform_MetricsAllocation(b *testing.B) {
 }
 
 func BenchmarkMobilePlatform_Initialize_Android(b *testing.B) {
-	log := logger.NewLogger(false)
 	app := config.AppConfig{
 		Name:     "Benchmark App",
 		Type:     "mobile",
 		Platform: "android",
-		DeviceID: "emulator-5554",
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		platform := NewMobilePlatform(log)
+		platform := NewMobilePlatform()
 		_ = platform
 		_ = app
 	}
 }
 
 func BenchmarkMobilePlatform_Initialize_iOS(b *testing.B) {
-	log := logger.NewLogger(false)
 	app := config.AppConfig{
 		Name:     "Benchmark App",
 		Type:     "mobile",
 		Platform: "ios",
-		DeviceID: "iPhone-12",
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		platform := NewMobilePlatform(log)
+		platform := NewMobilePlatform()
 		_ = platform
 		_ = app
 	}
@@ -149,8 +133,7 @@ func BenchmarkMobilePlatform_Initialize_iOS(b *testing.B) {
 // Benchmark PlatformFactory
 
 func BenchmarkPlatformFactory_CreateWebPlatform(b *testing.B) {
-	log := logger.NewLogger(false)
-	factory := NewPlatformFactory(log)
+	factory := NewPlatformFactory()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -163,8 +146,7 @@ func BenchmarkPlatformFactory_CreateWebPlatform(b *testing.B) {
 }
 
 func BenchmarkPlatformFactory_CreateDesktopPlatform(b *testing.B) {
-	log := logger.NewLogger(false)
-	factory := NewPlatformFactory(log)
+	factory := NewPlatformFactory()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -177,8 +159,7 @@ func BenchmarkPlatformFactory_CreateDesktopPlatform(b *testing.B) {
 }
 
 func BenchmarkPlatformFactory_CreateMobilePlatform(b *testing.B) {
-	log := logger.NewLogger(false)
-	factory := NewPlatformFactory(log)
+	factory := NewPlatformFactory()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -191,8 +172,7 @@ func BenchmarkPlatformFactory_CreateMobilePlatform(b *testing.B) {
 }
 
 func BenchmarkPlatformFactory_InvalidPlatform(b *testing.B) {
-	log := logger.NewLogger(false)
-	factory := NewPlatformFactory(log)
+	factory := NewPlatformFactory()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -256,8 +236,7 @@ func BenchmarkScreenshotPathGeneration(b *testing.B) {
 // Benchmark Wait operation simulation
 
 func BenchmarkWaitOperation_Validation(b *testing.B) {
-	log := logger.NewLogger(false)
-	platform := NewWebPlatform(log)
+	platform := NewWebPlatform()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

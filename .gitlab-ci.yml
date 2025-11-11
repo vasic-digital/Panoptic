@@ -1,0 +1,244 @@
+# GitLab CI/CD Configuration for Panoptic
+# Documentation: https://docs.gitlab.com/ee/ci/
+
+variables:
+  GO_VERSION: "1.22"
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+
+stages:
+  - lint
+  - test
+  - build
+  - security
+  - deploy
+
+# Global before script
+before_script:
+  - echo "Starting CI/CD pipeline for Panoptic"
+
+# Cache Go modules
+.go-cache:
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - .cache/go-build
+      - .cache/go/pkg/mod
+
+# ============================================================================
+# Stage 1: Lint
+# ============================================================================
+
+lint:format:
+  stage: lint
+  image: golang:${GO_VERSION}
+  extends: .go-cache
+  script:
+    - gofmt -l . | tee fmt-output.txt
+    - test ! -s fmt-output.txt || (echo "Files not formatted" && exit 1)
+  only:
+    - merge_requests
+    - main
+    - develop
+
+lint:golangci:
+  stage: lint
+  image: golangci/golangci-lint:latest
+  script:
+    - golangci-lint run --timeout=5m --out-format=colored-line-number
+  only:
+    - merge_requests
+    - main
+    - develop
+  artifacts:
+    reports:
+      codequality: gl-code-quality-report.json
+    expire_in: 1 week
+
+# ============================================================================
+# Stage 2: Test
+# ============================================================================
+
+test:unit:
+  stage: test
+  image: golang:${GO_VERSION}
+  extends: .go-cache
+  services:
+    - name: chromium
+  before_script:
+    - apt-get update && apt-get install -y chromium chromium-driver
+  script:
+    - go test -v -race -coverprofile=coverage.txt -covermode=atomic ./internal/... ./cmd/...
+    - go tool cover -func=coverage.txt
+  coverage: '/total:.*\(statements\).*\d+\.\d+%/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.txt
+    expire_in: 1 week
+  only:
+    - merge_requests
+    - main
+    - develop
+
+test:integration:
+  stage: test
+  image: golang:${GO_VERSION}
+  extends: .go-cache
+  services:
+    - name: chromium
+  before_script:
+    - apt-get update && apt-get install -y chromium chromium-driver
+  script:
+    - go test -v -tags=integration ./tests/integration/...
+  only:
+    - merge_requests
+    - main
+    - develop
+  allow_failure: true
+
+test:e2e:
+  stage: test
+  image: golang:${GO_VERSION}
+  extends: .go-cache
+  services:
+    - name: chromium
+  before_script:
+    - apt-get update && apt-get install -y chromium chromium-driver xvfb
+  script:
+    - xvfb-run -a go test -v -tags=e2e -timeout=10m ./tests/e2e/...
+  only:
+    - merge_requests
+    - main
+    - develop
+  allow_failure: true
+
+test:benchmark:
+  stage: test
+  image: golang:${GO_VERSION}
+  extends: .go-cache
+  script:
+    - go test -bench=. -benchmem -run=^$ ./internal/... > benchmark-results.txt
+    - cat benchmark-results.txt
+  artifacts:
+    paths:
+      - benchmark-results.txt
+    expire_in: 30 days
+  only:
+    - main
+
+# ============================================================================
+# Stage 3: Build
+# ============================================================================
+
+build:binary:
+  stage: build
+  image: golang:${GO_VERSION}
+  extends: .go-cache
+  script:
+    - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o panoptic-linux-amd64 main.go
+    - CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o panoptic-darwin-amd64 main.go
+    - CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o panoptic-windows-amd64.exe main.go
+  artifacts:
+    paths:
+      - panoptic-*
+    expire_in: 30 days
+  only:
+    - main
+    - tags
+
+build:docker:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
+    - docker build -t $CI_REGISTRY_IMAGE:latest .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE:latest
+  only:
+    - main
+    - tags
+
+# ============================================================================
+# Stage 4: Security
+# ============================================================================
+
+security:gosec:
+  stage: security
+  image: golang:${GO_VERSION}
+  script:
+    - go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+    - gosec -fmt=json -out=gosec-report.json ./...
+  artifacts:
+    reports:
+      sast: gosec-report.json
+    expire_in: 1 week
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+security:trivy:
+  stage: security
+  image: aquasec/trivy:latest
+  script:
+    - trivy image --format template --template "@/contrib/gitlab.tpl" -o gl-container-scanning-report.json $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  artifacts:
+    reports:
+      container_scanning: gl-container-scanning-report.json
+    expire_in: 1 week
+  dependencies:
+    - build:docker
+  only:
+    - main
+    - tags
+
+security:dependency-scan:
+  stage: security
+  image: golang:${GO_VERSION}
+  script:
+    - go install golang.org/x/vuln/cmd/govulncheck@latest
+    - govulncheck ./...
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+# ============================================================================
+# Stage 5: Deploy
+# ============================================================================
+
+deploy:staging:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  before_script:
+    - kubectl config use-context staging
+  script:
+    - kubectl set image deployment/panoptic panoptic=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA -n panoptic-staging
+    - kubectl rollout status deployment/panoptic -n panoptic-staging --timeout=5m
+  environment:
+    name: staging
+    url: https://staging.panoptic.example.com
+  only:
+    - develop
+  when: manual
+
+deploy:production:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  before_script:
+    - kubectl config use-context production
+  script:
+    - kubectl set image deployment/panoptic panoptic=$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG -n panoptic-production
+    - kubectl rollout status deployment/panoptic -n panoptic-production --timeout=10m
+  environment:
+    name: production
+    url: https://panoptic.example.com
+  only:
+    - tags
+  when: manual
