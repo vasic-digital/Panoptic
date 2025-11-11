@@ -1,0 +1,20 @@
+[
+  {
+    "id": "r3QBN_wYFAb2BOuvzARP-A",
+    "timestamp": "2025-11-11T10:51:13.726657+03:00",
+    "user_id": "JLe-gcdVnublas9fJCG0gA",
+    "username": "admin",
+    "action": "user.create",
+    "resource": "user",
+    "resource_id": "JLe-gcdVnublas9fJCG0gA",
+    "details": {
+      "role": "admin",
+      "username": "admin"
+    },
+    "ip_address": "",
+    "user_agent": "",
+    "success": true,
+    "severity": "medium",
+    "category": "auth"
+  }
+]

@@ -1,0 +1,26 @@
+{
+  "38OFfwEqYyAyKoJJGpNLYg": {
+    "id": "38OFfwEqYyAyKoJJGpNLYg",
+    "user_id": "JLe-gcdVnublas9fJCG0gA",
+    "plan": "trial",
+    "status": "active",
+    "start_date": "2025-11-11T10:51:13.726654+03:00",
+    "end_date": "2025-12-11T10:51:13.726654+03:00",
+    "renewal_date": "2025-12-11T10:51:13.726655+03:00",
+    "features": [
+      "basic_testing",
+      "limited_api"
+    ],
+    "limits": {
+      "max_users": 1,
+      "max_projects": 1,
+      "max_test_runs": 100,
+      "max_api_keys": 1,
+      "max_storage_gb": 1,
+      "max_bandwidth_gb": 10
+    },
+    "metadata": null,
+    "created_at": "2025-11-11T10:51:13.726655+03:00",
+    "updated_at": "2025-11-11T10:51:13.726655+03:00"
+  }
+}
