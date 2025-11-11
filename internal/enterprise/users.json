@@ -5,7 +5,7 @@
     "email": "test@example.com",
     "first_name": "",
     "last_name": "",
-    "password_hash": "$2a$10$hDjpC6.MwnCbW3sLD5j0jOYYI5qWqQrnKho1UOv1WNNaiRlbyr3k2",
+    "password_hash": "$2a$10$y9Yt1cZLQOWlMaZsdJp1y.Gobln4nRhgmKfOG5J179uVhyRFG/ocu",
     "role": "user",
     "team_ids": null,
     "project_ids": null,
@@ -21,9 +21,9 @@
       "notifications": false,
       "email_digest": false
     },
-    "last_login": "2025-11-11T12:52:24.716248+03:00",
+    "last_login": "2025-11-11T13:09:00.012505+03:00",
     "created_at": "0001-01-01T00:00:00Z",
-    "updated_at": "2025-11-11T12:52:24.716248+03:00",
+    "updated_at": "2025-11-11T13:09:00.012505+03:00",
     "active": true,
     "metadata": null
   }

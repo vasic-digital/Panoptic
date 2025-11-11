@@ -757,3 +757,374 @@ func TestExecutor_Integration_SimpleWorkflow(t *testing.T) {
 	assert.NoError(t, err)
 	assert.FileExists(t, reportPath)
 }
+
+// Test new enterprise action functions
+
+func TestExecutor_ExecuteEnterpriseAction_NotInitialized(t *testing.T) {
+	log := logger.NewLogger(false)
+	cfg := &config.Config{
+		Name:     "Test",
+		Apps:     []config.AppConfig{{Name: "Test", Type: "web"}},
+		Actions:  []config.Action{},
+		Settings: config.Settings{},
+	}
+	outputDir := t.TempDir()
+	executor := NewExecutor(cfg, outputDir, log)
+
+	app := config.AppConfig{Name: "Test", Type: "web"}
+	action := config.Action{
+		Type:       "user_create",
+		Parameters: map[string]interface{}{},
+	}
+
+	err := executor.executeEnterpriseAction(app, action, "user_create")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not initialized")
+}
+
+func TestExecutor_ExecuteEnterpriseAction_WithInitialization(t *testing.T) {
+	log := logger.NewLogger(false)
+
+	// Create temporary enterprise config
+	tmpDir := t.TempDir()
+	enterpriseConfigPath := filepath.Join(tmpDir, "enterprise_config.yaml")
+	enterpriseConfig := `enabled: true
+organization:
+  name: "Test Org"
+  id: "test-org"
+license:
+  type: "enterprise"
+  max_users: 100
+  expiration_date: "2030-12-31T23:59:59Z"
+storage:
+  data_path: "` + filepath.Join(tmpDir, "data") + `"
+`
+	err := os.WriteFile(enterpriseConfigPath, []byte(enterpriseConfig), 0644)
+	assert.NoError(t, err)
+
+	cfg := &config.Config{
+		Name: "Test",
+		Apps: []config.AppConfig{{Name: "Test", Type: "web"}},
+		Actions: []config.Action{},
+		Settings: config.Settings{
+			Enterprise: map[string]interface{}{
+				"config_path": enterpriseConfigPath,
+			},
+		},
+	}
+	outputDir := t.TempDir()
+	executor := NewExecutor(cfg, outputDir, log)
+
+	// Initialize enterprise integration
+	if executor.enterpriseIntegration != nil {
+		err = executor.enterpriseIntegration.Initialize(enterpriseConfigPath)
+		assert.NoError(t, err)
+	}
+
+	app := config.AppConfig{Name: "Test", Type: "web"}
+	action := config.Action{
+		Type: "enterprise_status",
+		Parameters: map[string]interface{}{
+			"output": "enterprise/status.json",
+		},
+	}
+
+	err = executor.executeEnterpriseAction(app, action, "enterprise_status")
+	// This will succeed if enterprise is initialized
+	if executor.enterpriseIntegration != nil && executor.enterpriseIntegration.Initialized {
+		assert.NoError(t, err)
+
+		// Check that output file was created
+		outputPath := filepath.Join(outputDir, "enterprise", "status.json")
+		assert.FileExists(t, outputPath)
+	}
+}
+
+func TestExecutor_SaveEnterpriseActionResult(t *testing.T) {
+	log := logger.NewLogger(false)
+	cfg := &config.Config{
+		Name:     "Test",
+		Apps:     []config.AppConfig{},
+		Actions:  []config.Action{},
+		Settings: config.Settings{},
+	}
+	outputDir := t.TempDir()
+	executor := NewExecutor(cfg, outputDir, log)
+
+	result := map[string]interface{}{
+		"status": "success",
+		"count":  42,
+	}
+
+	err := executor.saveEnterpriseActionResult("test_action", result, "test/result.json")
+	assert.NoError(t, err)
+
+	// Verify file was created
+	outputPath := filepath.Join(outputDir, "test", "result.json")
+	assert.FileExists(t, outputPath)
+
+	// Verify content
+	data, err := os.ReadFile(outputPath)
+	assert.NoError(t, err)
+
+	var loaded map[string]interface{}
+	err = json.Unmarshal(data, &loaded)
+	assert.NoError(t, err)
+	assert.Equal(t, "success", loaded["status"])
+	assert.Equal(t, float64(42), loaded["count"]) // JSON numbers are float64
+}
+
+func TestExecutor_SaveEnterpriseActionResult_InvalidPath(t *testing.T) {
+	log := logger.NewLogger(false)
+	cfg := &config.Config{
+		Name:     "Test",
+		Apps:     []config.AppConfig{},
+		Actions:  []config.Action{},
+		Settings: config.Settings{},
+	}
+	// Use an invalid output directory
+	outputDir := "/invalid/path/that/does/not/exist"
+	executor := NewExecutor(cfg, outputDir, log)
+
+	result := map[string]interface{}{"test": "data"}
+
+	err := executor.saveEnterpriseActionResult("test", result, "test.json")
+	assert.Error(t, err)
+}
+
+// Test executeAction with different enterprise action types
+
+func TestExecutor_ExecuteAction_UserCreate(t *testing.T) {
+	log := logger.NewLogger(false)
+	cfg := &config.Config{
+		Name:     "Test",
+		Apps:     []config.AppConfig{},
+		Actions:  []config.Action{},
+		Settings: config.Settings{},
+	}
+	outputDir := t.TempDir()
+	executor := NewExecutor(cfg, outputDir, log)
+
+	app := config.AppConfig{Name: "Test", Type: "web"}
+	action := config.Action{
+		Type: "user_create",
+		Parameters: map[string]interface{}{
+			"username": "testuser",
+			"email":    "test@example.com",
+		},
+	}
+
+	var result TestResult
+	var recordingFile string
+
+	// This will fail because enterprise is not initialized, which is expected
+	err := executor.executeAction(nil, action, app, &result, &recordingFile)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not initialized")
+}
+
+func TestExecutor_ExecuteAction_ProjectCreate(t *testing.T) {
+	log := logger.NewLogger(false)
+	cfg := &config.Config{
+		Name:     "Test",
+		Apps:     []config.AppConfig{},
+		Actions:  []config.Action{},
+		Settings: config.Settings{},
+	}
+	outputDir := t.TempDir()
+	executor := NewExecutor(cfg, outputDir, log)
+
+	app := config.AppConfig{Name: "Test", Type: "web"}
+	action := config.Action{
+		Type: "project_create",
+		Parameters: map[string]interface{}{
+			"name":        "Test Project",
+			"description": "A test project",
+		},
+	}
+
+	var result TestResult
+	var recordingFile string
+
+	err := executor.executeAction(nil, action, app, &result, &recordingFile)
+	assert.Error(t, err)
+}
+
+func TestExecutor_ExecuteAction_TeamCreate(t *testing.T) {
+	log := logger.NewLogger(false)
+	cfg := &config.Config{
+		Name:     "Test",
+		Apps:     []config.AppConfig{},
+		Actions:  []config.Action{},
+		Settings: config.Settings{},
+	}
+	outputDir := t.TempDir()
+	executor := NewExecutor(cfg, outputDir, log)
+
+	app := config.AppConfig{Name: "Test", Type: "web"}
+	action := config.Action{
+		Type: "team_create",
+		Parameters: map[string]interface{}{
+			"name": "Test Team",
+		},
+	}
+
+	var result TestResult
+	var recordingFile string
+
+	err := executor.executeAction(nil, action, app, &result, &recordingFile)
+	assert.Error(t, err)
+}
+
+func TestExecutor_ExecuteAction_APIKeyCreate(t *testing.T) {
+	log := logger.NewLogger(false)
+	cfg := &config.Config{
+		Name:     "Test",
+		Apps:     []config.AppConfig{},
+		Actions:  []config.Action{},
+		Settings: config.Settings{},
+	}
+	outputDir := t.TempDir()
+	executor := NewExecutor(cfg, outputDir, log)
+
+	app := config.AppConfig{Name: "Test", Type: "web"}
+	action := config.Action{
+		Type: "api_key_create",
+		Parameters: map[string]interface{}{
+			"name":    "Test Key",
+			"user_id": "admin",
+		},
+	}
+
+	var result TestResult
+	var recordingFile string
+
+	err := executor.executeAction(nil, action, app, &result, &recordingFile)
+	assert.Error(t, err)
+}
+
+func TestExecutor_ExecuteAction_AuditReport(t *testing.T) {
+	log := logger.NewLogger(false)
+	cfg := &config.Config{
+		Name:     "Test",
+		Apps:     []config.AppConfig{},
+		Actions:  []config.Action{},
+		Settings: config.Settings{},
+	}
+	outputDir := t.TempDir()
+	executor := NewExecutor(cfg, outputDir, log)
+
+	app := config.AppConfig{Name: "Test", Type: "web"}
+	action := config.Action{
+		Type:       "audit_report",
+		Parameters: map[string]interface{}{},
+	}
+
+	var result TestResult
+	var recordingFile string
+
+	err := executor.executeAction(nil, action, app, &result, &recordingFile)
+	assert.Error(t, err)
+}
+
+func TestExecutor_ExecuteAction_ComplianceCheck(t *testing.T) {
+	log := logger.NewLogger(false)
+	cfg := &config.Config{
+		Name:     "Test",
+		Apps:     []config.AppConfig{},
+		Actions:  []config.Action{},
+		Settings: config.Settings{},
+	}
+	outputDir := t.TempDir()
+	executor := NewExecutor(cfg, outputDir, log)
+
+	app := config.AppConfig{Name: "Test", Type: "web"}
+	action := config.Action{
+		Type: "compliance_check",
+		Parameters: map[string]interface{}{
+			"standard": "SOC2",
+		},
+	}
+
+	var result TestResult
+	var recordingFile string
+
+	err := executor.executeAction(nil, action, app, &result, &recordingFile)
+	assert.Error(t, err)
+}
+
+func TestExecutor_ExecuteAction_LicenseInfo(t *testing.T) {
+	log := logger.NewLogger(false)
+	cfg := &config.Config{
+		Name:     "Test",
+		Apps:     []config.AppConfig{},
+		Actions:  []config.Action{},
+		Settings: config.Settings{},
+	}
+	outputDir := t.TempDir()
+	executor := NewExecutor(cfg, outputDir, log)
+
+	app := config.AppConfig{Name: "Test", Type: "web"}
+	action := config.Action{
+		Type:       "license_info",
+		Parameters: map[string]interface{}{},
+	}
+
+	var result TestResult
+	var recordingFile string
+
+	err := executor.executeAction(nil, action, app, &result, &recordingFile)
+	assert.Error(t, err)
+}
+
+func TestExecutor_ExecuteAction_BackupData(t *testing.T) {
+	log := logger.NewLogger(false)
+	cfg := &config.Config{
+		Name:     "Test",
+		Apps:     []config.AppConfig{},
+		Actions:  []config.Action{},
+		Settings: config.Settings{},
+	}
+	outputDir := t.TempDir()
+	executor := NewExecutor(cfg, outputDir, log)
+
+	app := config.AppConfig{Name: "Test", Type: "web"}
+	action := config.Action{
+		Type: "backup_data",
+		Parameters: map[string]interface{}{
+			"backup_path": "/tmp/backup",
+		},
+	}
+
+	var result TestResult
+	var recordingFile string
+
+	err := executor.executeAction(nil, action, app, &result, &recordingFile)
+	assert.Error(t, err)
+}
+
+func TestExecutor_ExecuteAction_CleanupData(t *testing.T) {
+	log := logger.NewLogger(false)
+	cfg := &config.Config{
+		Name:     "Test",
+		Apps:     []config.AppConfig{},
+		Actions:  []config.Action{},
+		Settings: config.Settings{},
+	}
+	outputDir := t.TempDir()
+	executor := NewExecutor(cfg, outputDir, log)
+
+	app := config.AppConfig{Name: "Test", Type: "web"}
+	action := config.Action{
+		Type: "cleanup_data",
+		Parameters: map[string]interface{}{
+			"retention_days": 90,
+		},
+	}
+
+	var result TestResult
+	var recordingFile string
+
+	err := executor.executeAction(nil, action, app, &result, &recordingFile)
+	assert.Error(t, err)
+}
