@@ -1,0 +1,27 @@
+actions:
+    - auto_generated: true
+      confidence: 0.9
+      description: AI-generated navigation test
+      name: AI_Generated_Navigation_Test
+      type: navigate
+      url: about:blank
+    - auto_generated: true
+      confidence: 0.95
+      description: AI-generated screenshot for page documentation
+      name: AI_Generated_Screenshot_Documentation
+      type: screenshot
+ai_version: 1.0.0
+apps:
+    - name: AI Generated Test App
+      type: web
+      url: https://example.com
+description: Automatically generated test cases
+generated_at: "2025-11-26T16:33:58+03:00"
+name: AI Generated Tests
+settings:
+    enable_metrics: true
+    headless: true
+    log_level: info
+    quality: 85
+    screenshot_format: png
+    video_format: mp4

@@ -12,10 +12,11 @@ import (
 )
 
 type DesktopPlatform struct {
-	appPath   string
-	process   *os.Process
-	metrics   map[string]interface{}
-	recording bool
+	appPath        string
+	process        *os.Process
+	recordingCmd   *exec.Cmd
+	metrics        map[string]interface{}
+	recording      bool
 }
 
 func NewDesktopPlatform() *DesktopPlatform {
@@ -242,19 +243,29 @@ func (d *DesktopPlatform) StartRecording(filename string) error {
 		// For full screen: screencapture -v output.mov
 		cmd = exec.Command("screencapture", "-v", "-R", "0,0,1920,1080", filename)
 	case runtime.GOOS == "windows":
-		// Windows: Use PowerShell with built-in screen recording
-		// Or use FFmpeg if available
-		cmd = exec.Command("powershell", "-Command", 
-			"Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; "+
-			"$screen = [System.Windows.Forms.Screen]::PrimaryScreen; "+
-			"$bitmap = New-Object System.Drawing.Bitmap $screen.Bounds.Width, $screen.Bounds.Height; "+
-			"$graphics = [System.Drawing.Graphics]::FromImage($bitmap); "+
-			"$graphics.CopyFromScreen($screen.Bounds.Location, [System.Drawing.Point]::Empty, $screen.Bounds.Size); "+
-			"$bitmap.Save('"+filename+"', [System.Drawing.Imaging.ImageFormat]::Png); "+
-			"$graphics.Dispose(); $bitmap.Dispose()")
-	default:
+		// Windows: Use FFmpeg if available, otherwise PowerShell fallback for screenshots
+		// Try FFmpeg first for video
+		if _, err := exec.LookPath("ffmpeg"); err == nil {
+			cmd = exec.Command("ffmpeg", "-f", "gdigrab", "-framerate", "30", "-i", "desktop", "-t", "30", "-preset", "ultrafast", "-crf", "23", filename)
+		} else {
+			// PowerShell can't easily record video, use as fallback
+			cmd = exec.Command("powershell", "-Command", 
+				"Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; "+
+				"$screen = [System.Windows.Forms.Screen]::PrimaryScreen; "+
+				"$bitmap = New-Object System.Drawing.Bitmap $screen.Bounds.Width, $screen.Bounds.Height; "+
+				"$graphics = [System.Drawing.Graphics]::FromImage($bitmap); "+
+				"$graphics.CopyFromScreen($screen.Bounds.Location, [System.Drawing.Point]::Empty, $screen.Bounds.Size); "+
+				"$bitmap.Save('"+filename+"', [System.Drawing.Imaging.ImageFormat]::Png); "+
+				"$graphics.Dispose(); $bitmap.Dispose()")
+		}
+	default: // Linux and others
 		// Linux: Use FFmpeg if available, otherwise fallback
-		cmd = exec.Command("ffmpeg", "-f", "x11grab", "-video_size", "1920x1080", "-i", ":0.0", "-t", "30", filename)
+		if _, err := exec.LookPath("ffmpeg"); err == nil {
+			cmd = exec.Command("ffmpeg", "-f", "x11grab", "-video_size", "1920x1080", "-framerate", "30", "-i", ":0.0", "-t", "30", "-preset", "ultrafast", "-crf", "23", filename)
+		} else {
+			// No FFmpeg available
+			cmd = nil
+		}
 	}
 	
 	// Create video directory
@@ -291,6 +302,11 @@ func (d *DesktopPlatform) StartRecording(filename string) error {
 		if err := cmd.Start(); err != nil {
 			return fmt.Errorf("failed to start recording: %w", err)
 		}
+		// Store the command to stop it later
+		d.recordingCmd = cmd
+	} else {
+		// No recording method available, create placeholder
+		return d.createVideoPlaceholder(filename, "No recording method available for this platform")
 	}
 	
 	d.recording = true
@@ -315,14 +331,46 @@ func (d *DesktopPlatform) StopRecording() error {
 		}
 	}
 	
-	// In a real implementation, this would:
-	// 1. Stop the screencapture process on macOS
-	// 2. Stop the FFmpeg process on Linux
-	// 3. Save the final video file with proper encoding
-	// 4. Clean up temporary files
-	// 5. Return video metadata (resolution, duration, file size)
+	// Stop the recording process if it exists
+	if d.recordingCmd != nil && d.recordingCmd.Process != nil {
+		// Try graceful shutdown first
+		if runtime.GOOS == "darwin" {
+			// macOS: Send Control+C to screencapture
+			d.recordingCmd.Process.Signal(os.Interrupt)
+		} else if runtime.GOOS == "windows" {
+			// Windows: Try to gracefully terminate
+			d.recordingCmd.Process.Signal(os.Interrupt)
+		} else {
+			// Linux/Unix: Send SIGTERM to ffmpeg
+			d.recordingCmd.Process.Signal(os.Interrupt)
+		}
+		
+		// Wait a bit for graceful shutdown
+		time.Sleep(2 * time.Second)
+		
+		// Force kill if still running
+		if d.recordingCmd.ProcessState == nil || !d.recordingCmd.ProcessState.Exited() {
+			d.recordingCmd.Process.Kill()
+		}
+		
+		// Wait for process to finish
+		d.recordingCmd.Wait()
+		
+		// Clear the command
+		d.recordingCmd = nil
+		
+		// Check if video file was created
+		if filename, ok := d.metrics["recording_file"].(string); ok {
+			if _, err := os.Stat(filename); err == nil {
+				// Get file size
+				if stat, err := os.Stat(filename); err == nil {
+					d.metrics["video_size"] = stat.Size()
+					d.metrics["video_saved"] = true
+				}
+			}
+		}
+	}
 	
-	// Logging would go here: fmt.Printf("Desktop video recording stopped. Duration: %v", d.metrics["recording_duration"])
 	return nil
 }
 

@@ -1,0 +1,49 @@
+name: "AI Implementation Test"
+output: "./ai_test_implementation_output"
+
+apps:
+  - name: "AI Test Web App"
+    type: "web"
+    url: "https://example.com"
+    timeout: 30
+
+actions:
+  - name: "navigate_to_example"
+    type: "navigate"
+    url: "https://example.com"
+    wait_time: 2
+
+  - name: "take_screenshot"
+    type: "screenshot"
+    parameters:
+      filename: "example_screenshot.png"
+    wait_time: 1
+
+  - name: "test_ai_test_generation"
+    type: "ai_test_generation"
+    parameters:
+      output: "generated_tests.yaml"
+
+  - name: "test_smart_error_detection"
+    type: "smart_error_detection"
+    parameters:
+      output: "error_report.json"
+
+  - name: "test_ai_enhanced_testing"
+    type: "ai_enhanced_testing"
+    parameters:
+      output: "ai_testing_report.json"
+
+settings:
+  screenshot_format: "png"
+  video_format: "webm"
+  quality: 85
+  headless: true
+  enable_metrics: true
+  log_level: "info"
+
+  ai_testing:
+    enable_error_detection: true
+    enable_test_generation: true
+    enable_vision_analysis: true
+    confidence_threshold: 0.8

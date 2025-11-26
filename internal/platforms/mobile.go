@@ -12,11 +12,12 @@ import (
 )
 
 type MobilePlatform struct {
-	platform   string // ios, android
-	device     string
-	emulator   bool
-	metrics    map[string]interface{}
-	recording  bool
+	platform     string // ios, android
+	device       string
+	emulator     bool
+	recordingCmd  *exec.Cmd
+	metrics      map[string]interface{}
+	recording    bool
 }
 
 func NewMobilePlatform() *MobilePlatform {
@@ -321,7 +322,10 @@ func (m *MobilePlatform) StartRecording(filename string) error {
 			// Fallback to placeholder file if recording fails
 			return m.createVideoPlaceholder(filename, fmt.Sprintf("Failed to start %s recording: %v", m.platform, err))
 		}
-		// Logging would go here: fmt.Printf("Mobile video recording started on %s: %s", m.platform, filename)
+		// Store the command for stopping later
+		m.recordingCmd = cmd
+	} else {
+		return m.createVideoPlaceholder(filename, "No recording method available")
 	}
 	
 	m.recording = true

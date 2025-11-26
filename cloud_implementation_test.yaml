@@ -1,0 +1,39 @@
+name: "Cloud Upload Test"
+output: "./cloud_test_implementation_output"
+
+apps:
+  - name: "Cloud Test Web App"
+    type: "web"
+    url: "https://example.com"
+    timeout: 30
+
+actions:
+  - name: "navigate_to_example"
+    type: "navigate"
+    url: "https://example.com"
+    wait_time: 2
+
+  - name: "take_screenshot"
+    type: "screenshot"
+    parameters:
+      filename: "cloud_test_screenshot.png"
+    wait_time: 1
+
+  - name: "test_cloud_sync"
+    type: "cloud_sync"
+    parameters:
+      provider: "local"
+      bucket: "./cloud_storage_test"
+
+settings:
+  screenshot_format: "png"
+  video_format: "webm"
+  quality: 85
+  headless: true
+  enable_metrics: true
+  log_level: "info"
+
+  cloud:
+    provider: "local"
+    bucket: "./cloud_storage_test"
+    enable_sync: true

@@ -1,0 +1,13 @@
+{
+  "ai_version": "1.0.0",
+  "errors": [],
+  "generated_at": "2025-11-26T16:33:58+03:00",
+  "report_type": "error_analysis",
+  "summary": {
+    "critical_errors": 0,
+    "high_severity": 0,
+    "low_severity": 0,
+    "medium_severity": 0,
+    "total_errors": 0
+  }
+}

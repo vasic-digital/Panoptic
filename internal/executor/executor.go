@@ -715,22 +715,43 @@ func (e *Executor) executeCloudSync(app config.AppConfig) error {
 		return fmt.Errorf("cloud manager not initialized")
 	}
 
-	// Upload all test artifacts
-	files, err := filepath.Glob(filepath.Join(e.outputDir, "*"))
+	// Upload all test artifacts (files only, not directories)
+	fileInfos, err := os.ReadDir(e.outputDir)
 	if err != nil {
-		return fmt.Errorf("failed to list output files: %w", err)
+		return fmt.Errorf("failed to read output directory: %w", err)
 	}
 
 	uploadedCount := 0
-	for _, file := range files {
-		if err := e.cloudManager.Upload(file); err != nil {
-			e.logger.Warnf("Failed to upload %s: %v", file, err)
-			continue
+	for _, fileInfo := range fileInfos {
+		if fileInfo.IsDir() {
+			// Recursively upload files from subdirectories
+			subFiles, err := filepath.Glob(filepath.Join(e.outputDir, fileInfo.Name(), "*"))
+			if err != nil {
+				e.logger.Warnf("Failed to list files in %s: %v", fileInfo.Name(), err)
+				continue
+			}
+			
+			for _, subFile := range subFiles {
+				if stat, err := os.Stat(subFile); err == nil && !stat.IsDir() {
+					if err := e.cloudManager.Upload(subFile); err != nil {
+						e.logger.Warnf("Failed to upload %s: %v", subFile, err)
+						continue
+					}
+					uploadedCount++
+				}
+			}
+		} else {
+			// Upload file directly
+			fullPath := filepath.Join(e.outputDir, fileInfo.Name())
+			if err := e.cloudManager.Upload(fullPath); err != nil {
+				e.logger.Warnf("Failed to upload %s: %v", fullPath, err)
+				continue
+			}
+			uploadedCount++
 		}
-		uploadedCount++
 	}
 
-	e.logger.Infof("Uploaded %d/%d files to cloud storage", uploadedCount, len(files))
+	e.logger.Infof("Uploaded %d files to cloud storage", uploadedCount)
 	return nil
 }
 
