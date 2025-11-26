@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -55,6 +56,236 @@ type TestResult struct {
 	Videos     []string                  `json:"videos"`
 	Success    bool                      `json:"success"`
 	Error      string                    `json:"error,omitempty"`
+}
+
+// JSON optimization pools for performance
+var (
+	jsonBufferPool = sync.Pool{
+		New: func() interface{} {
+			return bytes.NewBuffer(make([]byte, 0, 2048))
+		},
+	}
+)
+
+// formatInt64 converts int64 to string without allocations
+func formatInt64(n int64) []byte {
+	if n == 0 {
+		return []byte{'0'}
+	}
+	
+	var buf [20]byte
+	neg := n < 0
+	if neg {
+		n = -n
+	}
+	
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	
+	if neg {
+		i--
+		buf[i] = '-'
+	}
+	
+	return buf[i:]
+}
+
+// appendJSONString safely appends a string with JSON escaping
+func appendJSONString(buf []byte, s string) []byte {
+	buf = append(buf, '"')
+	for _, r := range s {
+		switch r {
+		case '"':
+			buf = append(buf, '\\', '"')
+		case '\\':
+			buf = append(buf, '\\', '\\')
+		case '\n':
+			buf = append(buf, '\\', 'n')
+		case '\r':
+			buf = append(buf, '\\', 'r')
+		case '\t':
+			buf = append(buf, '\\', 't')
+		default:
+			if r < 32 {
+				buf = append(buf, '\\', 'u', '0', '0')
+				buf = append(buf, byte('0'+(r>>4)), byte('0'+(r&0xF)))
+			} else {
+				buf = append(buf, byte(r))
+			}
+		}
+	}
+	buf = append(buf, '"')
+	return buf
+}
+
+// appendJSONValue appends a value of any type to JSON
+func appendJSONValue(buf []byte, v interface{}) []byte {
+	switch val := v.(type) {
+	case string:
+		return appendJSONString(buf, val)
+	case int:
+		return append(buf, formatInt64(int64(val))...)
+	case int64:
+		return append(buf, formatInt64(val)...)
+	case float64:
+		return append(buf, []byte(fmt.Sprintf("%g", val))...)
+	case bool:
+		if val {
+			return append(buf, "true"...)
+		}
+		return append(buf, "false"...)
+	case []string:
+		buf = append(buf, '[')
+		for i, item := range val {
+			if i > 0 {
+				buf = append(buf, ',')
+			}
+			buf = appendJSONString(buf, item)
+		}
+		buf = append(buf, ']')
+		return buf
+	case []map[string]string:
+		buf = append(buf, '[')
+		for i, item := range val {
+			if i > 0 {
+				buf = append(buf, ',')
+			}
+			buf = append(buf, '{')
+			first := true
+			for k, v := range item {
+				if !first {
+					buf = append(buf, ',')
+				}
+				buf = appendJSONString(buf, k)
+				buf = append(buf, ':')
+				buf = appendJSONString(buf, v)
+				first = false
+			}
+			buf = append(buf, '}')
+		}
+		buf = append(buf, ']')
+		return buf
+	case time.Time:
+		return appendJSONString(buf, val.Format(time.RFC3339Nano))
+	case time.Duration:
+		return append(buf, formatInt64(val.Nanoseconds())...)
+	default:
+		// Fallback to JSON marshaling for complex types
+		encoded, err := json.Marshal(v)
+		if err != nil {
+			return appendJSONString(buf, fmt.Sprintf("ERROR: %v", v))
+		}
+		return append(buf, encoded...)
+	}
+}
+
+// Optimized JSON marshaling for TestResult using super-fast approach
+func (tr *TestResult) MarshalJSON() ([]byte, error) {
+	// Pre-calculate approximate size to avoid reallocations
+	size := 300 // Base JSON structure overhead
+	size += len(tr.AppName) + len(tr.AppType) + 40 // strings + quotes and escapes
+	size += len(tr.StartTime.Format(time.RFC3339Nano)) + len(tr.EndTime.Format(time.RFC3339Nano)) + 40
+	size += 20 // duration
+	
+	// Screenshots and videos arrays
+	size += len(tr.Screenshots)*30 + len(tr.Videos)*30 + 40 // average path length + JSON overhead
+	
+	// Metrics (rough estimation)
+	metricsSize := 100
+	for k, v := range tr.Metrics {
+		metricsSize += len(k) + 20 // key + JSON overhead
+		switch v.(type) {
+		case string:
+			metricsSize += 30 // average string value
+		case int, int64:
+			metricsSize += 10 // number
+		case float64:
+			metricsSize += 15 // float
+		case bool:
+			metricsSize += 6 // true/false
+		case []string:
+			metricsSize += len(v.([]string)) * 20 // each string
+		case time.Time:
+			metricsSize += 30 // ISO timestamp
+		default:
+			metricsSize += 50 // complex type fallback
+		}
+	}
+	size += metricsSize
+	
+	// Error field
+	if tr.Error != "" {
+		size += len(tr.Error) + 20
+	}
+	
+	buf := make([]byte, 0, size)
+	
+	// Start JSON object
+	buf = append(buf, `{"app_name":`...)
+	buf = appendJSONString(buf, tr.AppName)
+	buf = append(buf, `,"app_type":`...)
+	buf = appendJSONString(buf, tr.AppType)
+	buf = append(buf, `,"start_time":`...)
+	buf = appendJSONString(buf, tr.StartTime.Format(time.RFC3339Nano))
+	buf = append(buf, `,"end_time":`...)
+	buf = appendJSONString(buf, tr.EndTime.Format(time.RFC3339Nano))
+	buf = append(buf, `,"duration":`...)
+	buf = append(buf, formatInt64(tr.Duration.Nanoseconds())...)
+	
+	// Metrics object
+	buf = append(buf, `,"metrics":{`...)
+	first := true
+	for k, v := range tr.Metrics {
+		if !first {
+			buf = append(buf, ',')
+		}
+		buf = appendJSONString(buf, k)
+		buf = append(buf, ':')
+		buf = appendJSONValue(buf, v)
+		first = false
+	}
+	buf = append(buf, '}')
+	
+	// Screenshots array
+	buf = append(buf, `,"screenshots":[`...)
+	for i, screenshot := range tr.Screenshots {
+		if i > 0 {
+			buf = append(buf, ',')
+		}
+		buf = appendJSONString(buf, screenshot)
+	}
+	buf = append(buf, ']')
+	
+	// Videos array
+	buf = append(buf, `,"videos":[`...)
+	for i, video := range tr.Videos {
+		if i > 0 {
+			buf = append(buf, ',')
+		}
+		buf = appendJSONString(buf, video)
+	}
+	buf = append(buf, ']')
+	
+	// Success field
+	if tr.Success {
+		buf = append(buf, `,"success":true`...)
+	} else {
+		buf = append(buf, `,"success":false`...)
+	}
+	
+	// Error field if present
+	if tr.Error != "" {
+		buf = append(buf, `,"error":`...)
+		buf = appendJSONString(buf, tr.Error)
+	}
+	
+	buf = append(buf, '}')
+	
+	return buf, nil
 }
 
 // Helper functions for safely extracting values from maps

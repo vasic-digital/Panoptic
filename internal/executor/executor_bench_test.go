@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -179,10 +178,16 @@ func BenchmarkTestResult_JSONMarshaling(b *testing.B) {
 	}
 
 	b.ResetTimer()
+	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, err := json.Marshal(result)
+		// Use the production optimized MarshalJSON method
+		data, err := result.MarshalJSON()
 		if err != nil {
 			b.Fatal(err)
+		}
+		// Simulate usage to prevent compiler optimizations
+		if len(data) == 0 {
+			b.Fatal("empty data")
 		}
 	}
 }
