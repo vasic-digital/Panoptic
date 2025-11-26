@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 // TestNewAIEnhancedTester tests the creation of a new AI-enhanced tester
@@ -96,10 +97,28 @@ func TestGenerateTests(t *testing.T) {
 
 	tests, err := tester.GenerateTests(pageState)
 
-	// Should return empty list without error (stub implementation)
+	// Should generate tests based on page elements
 	assert.NoError(t, err, "GenerateTests should not return error")
 	assert.NotNil(t, tests, "Tests should not be nil")
-	assert.Equal(t, 0, len(tests), "Stub implementation should return empty tests")
+	assert.Greater(t, len(tests), 0, "Should generate at least one test")
+	
+	// Check for expected test types
+	hasNavigationTest := false
+	hasScreenshotTest := false
+	for _, test := range tests {
+		testMap, ok := test.(map[string]interface{})
+		if ok {
+			if testType, exists := testMap["type"].(string); exists {
+				if testType == "navigate" {
+					hasNavigationTest = true
+				} else if testType == "screenshot" {
+					hasScreenshotTest = true
+				}
+			}
+		}
+	}
+	assert.True(t, hasNavigationTest, "Should generate navigation test")
+	assert.True(t, hasScreenshotTest, "Should generate screenshot test")
 }
 
 // TestGenerateTests_NilPageState tests generation with nil page state
@@ -109,8 +128,10 @@ func TestGenerateTests_NilPageState(t *testing.T) {
 
 	tests, err := tester.GenerateTests(nil)
 
-	assert.NoError(t, err, "Should handle nil page state")
-	assert.NotNil(t, tests, "Should return empty tests")
+	// Should handle nil page state with proper error
+	assert.Error(t, err, "Should return error for nil page state")
+	assert.Nil(t, tests, "Should return nil tests on error")
+	assert.Contains(t, err.Error(), "invalid page state format", "Error should describe the issue")
 }
 
 // TestSaveTests tests saving generated tests to file
@@ -128,9 +149,15 @@ func TestSaveTests(t *testing.T) {
 
 	err := tester.SaveTests(tests, testPath)
 
-	// Stub implementation should return error
-	assert.Error(t, err, "Stub implementation should return error")
-	assert.Contains(t, err.Error(), "not yet implemented", "Error should indicate not implemented")
+	// Implementation should save tests successfully
+	assert.NoError(t, err, "SaveTests should not return error")
+	
+	// Verify file was created and contains expected content
+	content, err := os.ReadFile(testPath)
+	assert.NoError(t, err, "Should be able to read saved file")
+	assert.Contains(t, string(content), "AI Generated Tests", "Should contain test name")
+	assert.Contains(t, string(content), "test1", "Should contain first test")
+	assert.Contains(t, string(content), "test2", "Should contain second test")
 }
 
 // TestDetectErrors tests error detection in page state
@@ -145,10 +172,10 @@ func TestDetectErrors(t *testing.T) {
 
 	errors, err := tester.DetectErrors(pageState)
 
-	// Should return empty list without error (stub implementation)
+	// Should analyze page and potentially detect issues
 	assert.NoError(t, err, "DetectErrors should not return error")
 	assert.NotNil(t, errors, "Errors should not be nil")
-	assert.Equal(t, 0, len(errors), "Stub implementation should return no errors")
+	// Number of errors may vary, so we just check it returns something
 }
 
 // TestDetectErrors_NilPageState tests detection with nil page state
@@ -158,8 +185,10 @@ func TestDetectErrors_NilPageState(t *testing.T) {
 
 	errors, err := tester.DetectErrors(nil)
 
-	assert.NoError(t, err, "Should handle nil page state")
-	assert.NotNil(t, errors, "Should return empty errors")
+	// Should handle nil page state with proper error
+	assert.Error(t, err, "Should return error for nil page state")
+	assert.Nil(t, errors, "Should return nil errors on error")
+	assert.Contains(t, err.Error(), "invalid page state format", "Error should describe the issue")
 }
 
 // TestSaveErrorReport tests saving error report to file
@@ -177,9 +206,18 @@ func TestSaveErrorReport(t *testing.T) {
 
 	err := tester.SaveErrorReport(errors, reportPath)
 
-	// Stub implementation should return error
-	assert.Error(t, err, "Stub implementation should return error")
-	assert.Contains(t, err.Error(), "not yet implemented", "Error should indicate not implemented")
+	assert.NoError(t, err, "SaveErrorReport should not return error")
+
+	// Verify file was created
+	content, err := os.ReadFile(reportPath)
+	assert.NoError(t, err, "Should be able to read saved report")
+	
+	// Check content structure
+	var report map[string]interface{}
+	err = yaml.Unmarshal(content, &report)
+	assert.NoError(t, err, "Should be valid JSON/YAML")
+	assert.Equal(t, "error_analysis", report["report_type"], "Should have correct report type")
+	assert.Equal(t, len(errors), report["summary"].(map[string]interface{})["total_errors"], "Should have correct error count")
 }
 
 // TestExecuteEnhancedTesting tests AI-enhanced test execution
@@ -187,21 +225,24 @@ func TestExecuteEnhancedTesting(t *testing.T) {
 	log := logger.NewLogger(false)
 	tester := NewAIEnhancedTester(*log)
 
-	// Mock platform (nil for now)
-	var platform interface{} = nil
-	var actions interface{} = []string{"action1", "action2"}
+	// Mock platform (empty struct instead of nil)
+	platform := &struct{}{} // Mock platform
+	actions := []interface{}{
+		map[string]interface{}{"type": "click", "selector": "#button"},
+		map[string]interface{}{"type": "fill", "selector": "#input", "value": "test"},
+	}
 
 	result, err := tester.ExecuteEnhancedTesting(platform, actions)
 
-	// Stub implementation should return error
-	assert.Error(t, err, "Stub implementation should return error")
-	assert.Contains(t, err.Error(), "not yet implemented", "Error should indicate not implemented")
+	assert.NoError(t, err, "ExecuteEnhancedTesting should not return error")
 	assert.NotNil(t, result, "Result should not be nil")
 
 	// Check result is a map with expected fields
 	if resultMap, ok := result.(map[string]interface{}); ok {
-		assert.Equal(t, "not_implemented", resultMap["status"])
-		assert.Contains(t, resultMap["message"], "not yet implemented")
+		assert.Equal(t, "completed", resultMap["status"], "Should be completed")
+		assert.Equal(t, 2, resultMap["total_actions"], "Should have 2 total actions")
+		assert.Contains(t, resultMap, "ai_insights", "Should have AI insights")
+		assert.Contains(t, resultMap, "metrics", "Should have metrics")
 	}
 }
 
@@ -214,16 +255,25 @@ func TestSaveTestingReport(t *testing.T) {
 	reportPath := filepath.Join(tempDir, "testing_report.json")
 
 	results := map[string]interface{}{
-		"total_tests": 10,
-		"passed":      8,
-		"failed":      2,
+		"status": "completed",
+		"total_actions": 5,
+		"success_rate": 0.8,
 	}
 
 	err := tester.SaveTestingReport(results, reportPath)
 
-	// Stub implementation should return error
-	assert.Error(t, err, "Stub implementation should return error")
-	assert.Contains(t, err.Error(), "not yet implemented", "Error should indicate not implemented")
+	assert.NoError(t, err, "SaveTestingReport should not return error")
+
+	// Verify file was created
+	content, err := os.ReadFile(reportPath)
+	assert.NoError(t, err, "Should be able to read saved report")
+	
+	// Check content structure
+	var report map[string]interface{}
+	err = yaml.Unmarshal(content, &report)
+	assert.NoError(t, err, "Should be valid JSON/YAML")
+	assert.Equal(t, "ai_enhanced_testing", report["report_type"], "Should have correct report type")
+	assert.Equal(t, "completed", report["results"].(map[string]interface{})["status"], "Should preserve status")
 }
 
 // TestFilterTestsByConfidence tests filtering tests by confidence threshold

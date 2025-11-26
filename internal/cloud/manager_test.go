@@ -72,18 +72,35 @@ func TestConfigure_InvalidProvider(t *testing.T) {
 	assert.Contains(t, err.Error(), "unsupported", "Error should mention unsupported provider")
 }
 
-// TestUpload tests the Upload stub method
+// TestUpload tests the Upload method
 func TestUpload(t *testing.T) {
 	log := logger.NewLogger(false)
+	tempDir := t.TempDir()
 	manager := &CloudManager{
 		Logger:  *log,
 		Enabled: true,
+		Config: CloudConfig{
+			Provider: "local",
+			Bucket:  filepath.Join(tempDir, "storage"),
+		},
 	}
 
-	err := manager.Upload("/tmp/test.txt")
+	// Create a test file to upload
+	testFile := filepath.Join(tempDir, "test.txt")
+	err := os.WriteFile(testFile, []byte("test content"), 0644)
+	require.NoError(t, err, "Should create test file")
 
-	assert.Error(t, err, "Upload stub should return error")
-	assert.Contains(t, err.Error(), "not yet implemented", "Should indicate not implemented")
+	err = manager.Upload(testFile)
+
+	assert.NoError(t, err, "Upload should succeed")
+	assert.Greater(t, len(manager.TestResults), 0, "Should track upload result")
+	
+	// Verify the first upload result
+	if len(manager.TestResults) > 0 {
+		result := manager.TestResults[0]
+		assert.True(t, result.Success, "Upload should be marked as successful")
+		assert.NotEmpty(t, result.Artifacts, "Should have artifacts")
+	}
 }
 
 // TestCountSuccessfulResults tests result counting
