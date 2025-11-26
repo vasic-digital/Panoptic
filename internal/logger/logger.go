@@ -9,9 +9,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type flusher interface {
+	Flush() error
+}
+
 type Logger struct {
 	*logrus.Logger
 	outputDir string
+	flusher   flusher
 }
 
 func NewLogger(verbose bool) *Logger {
@@ -72,4 +77,15 @@ func (l *Logger) SetOutputDirectory(outputDir string) {
 	
 	l.SetOutput(bufferedWriter)
 	l.Infof("Log file: %s (buffered)", logFile)
+	
+	// Store flusher for testing
+	l.flusher = bufferedWriter
+}
+
+// Flush flushes the log buffer if it exists
+func (l *Logger) Flush() error {
+	if l.flusher != nil {
+		return l.flusher.Flush()
+	}
+	return nil
 }

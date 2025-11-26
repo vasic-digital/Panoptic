@@ -40,7 +40,7 @@ func TestAnalyzeActions(t *testing.T) {
 				{Type: "click", Name: "click2"},
 				{Type: "fill", Name: "fill2"},
 			},
-			expected: 3,
+			expected: 4, // navigate || [click,fill] || submit || [click,fill]
 		},
 		{
 			name: "all sequential",

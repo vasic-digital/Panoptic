@@ -92,16 +92,16 @@ var (
 
 func Load(configFile string) (*Config, error) {
 	// Get file info for modification time and checksum
-	fileInfo, err := os.Stat(configFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to stat config file: %w", err)
-	}
-	
-	// Calculate checksum for integrity checking
 	data, err := os.ReadFile(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
+	
+	fileInfo, err := os.Stat(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+	
 	checksum := fmt.Sprintf("%x", sha256.Sum256(data))
 	
 	// Check cache first

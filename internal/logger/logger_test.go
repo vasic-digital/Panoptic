@@ -80,6 +80,9 @@ func TestLogger_SetOutputDirectory(t *testing.T) {
 		testMessage := "Test log message"
 		logger.Info(testMessage)
 		
+		// Flush the buffer to ensure logs are written
+		logger.Flush()
+		
 		// Read the log file and verify content
 		logFile := filepath.Join(tempDir, "logs", "panoptic.log")
 		content, err := os.ReadFile(logFile)
@@ -112,6 +115,9 @@ func TestLogger_Levels(t *testing.T) {
 			testMessage := "Test " + level + " message"
 			logFunc(testMessage)
 			
+			// Flush buffer to ensure logs are written
+			logger.Flush()
+			
 			content, err := os.ReadFile(logFile)
 			require.NoError(t, err)
 			
@@ -132,6 +138,9 @@ func TestLogger_FormattedLogging(t *testing.T) {
 	logger.Infof("User %s logged in at %s", "testuser", "2023-01-01")
 	logger.Debugf("Debug info: %d items processed", 42)
 	logger.Errorf("Error occurred: %s", "connection timeout")
+
+	// Flush buffer to ensure logs are written
+	logger.Flush()
 
 	content, err := os.ReadFile(logFile)
 	require.NoError(t, err)
@@ -163,6 +172,9 @@ func TestLogger_ConcurrentLogging(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		<-done
 	}
+
+	// Flush buffer to ensure logs are written
+	logger.Flush()
 
 	content, err := os.ReadFile(logFile)
 	require.NoError(t, err)
@@ -218,6 +230,9 @@ func TestLogger_LongMessages(t *testing.T) {
 	// Test very long message
 	longMessage := strings.Repeat("This is a very long log message. ", 100)
 	logger.Info(longMessage)
+	
+	// Flush buffer to ensure logs are written
+	logger.Flush()
 
 	content, err := os.ReadFile(logFile)
 	require.NoError(t, err)
@@ -256,6 +271,9 @@ func TestLogger_SpecialCharacters(t *testing.T) {
 	for _, msg := range testMessages {
 		logger.Info(msg)
 	}
+
+	// Flush buffer to ensure logs are written
+	logger.Flush()
 
 	content, err := os.ReadFile(logFile)
 	require.NoError(t, err)
