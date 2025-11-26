@@ -32,8 +32,8 @@ type Executor struct {
 	
 	// Lazy-initialized components with sync.Once for thread safety
 	testGen           *ai.TestGenerator
-	errorDet          *ai.ErrorDetector
-	aiTester          *ai.AIEnhancedTester
+	errorDet          *ai.OptimizedErrorDetector
+	aiTester          *ai.OptimizedAIEnhancedTester
 	cloudManager      *cloud.CloudManager
 	cloudAnalytics    *cloud.CloudAnalytics
 	enterpriseIntegration *enterprise.EnterpriseIntegration
@@ -303,16 +303,16 @@ func (e *Executor) getTestGen() *ai.TestGenerator {
 	return e.testGen
 }
 
-func (e *Executor) getErrorDet() *ai.ErrorDetector {
+func (e *Executor) getErrorDet() *ai.OptimizedErrorDetector {
 	e.errorDetOnce.Do(func() {
-		e.errorDet = ai.NewErrorDetector(*e.logger)
+		e.errorDet = ai.NewOptimizedErrorDetector(*e.logger)
 	})
 	return e.errorDet
 }
 
-func (e *Executor) getAITester() *ai.AIEnhancedTester {
+func (e *Executor) getAITester() *ai.OptimizedAIEnhancedTester {
 	e.aiTesterOnce.Do(func() {
-		e.aiTester = ai.NewAIEnhancedTester(*e.logger)
+		e.aiTester = ai.NewOptimizedAIEnhancedTester(*e.logger)
 	})
 	return e.aiTester
 }
@@ -1400,4 +1400,12 @@ func actionRequiresPlatform(actionType string) bool {
 		"vision_report":   true,
 	}
 	return platformActions[actionType]
+}
+
+// Cleanup releases resources used by the executor
+func (e *Executor) Cleanup() {
+	if e.aiTester != nil {
+		e.aiTester.Release()
+		e.aiTester = nil
+	}
 }
