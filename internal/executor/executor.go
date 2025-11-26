@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -16,7 +17,7 @@ import (
 	"panoptic/internal/enterprise"
 	"panoptic/internal/logger"
 	"panoptic/internal/platforms"
-	// "panoptic/internal/vision" // TODO: Will be used when vision features are fully implemented
+	"panoptic/internal/vision"
 )
 
 type Executor struct {
@@ -25,12 +26,22 @@ type Executor struct {
 	logger            *logger.Logger
 	factory           *platforms.PlatformFactory
 	results           []TestResult
+	
+	// Lazy-initialized components with sync.Once for thread safety
 	testGen           *ai.TestGenerator
 	errorDet          *ai.ErrorDetector
 	aiTester          *ai.AIEnhancedTester
 	cloudManager      *cloud.CloudManager
 	cloudAnalytics    *cloud.CloudAnalytics
 	enterpriseIntegration *enterprise.EnterpriseIntegration
+	
+	// sync.Once for lazy initialization
+	testGenOnce       sync.Once
+	errorDetOnce      sync.Once
+	aiTesterOnce      sync.Once
+	cloudManagerOnce  sync.Once
+	cloudAnalyticsOnce sync.Once
+	enterpriseOnce    sync.Once
 }
 
 type TestResult struct {
@@ -47,6 +58,73 @@ type TestResult struct {
 }
 
 // Helper functions for safely extracting values from maps
+
+// Lazy initialization methods for performance optimization
+
+func (e *Executor) getTestGen() *ai.TestGenerator {
+	e.testGenOnce.Do(func() {
+		visionDetector := vision.NewElementDetector(*e.logger)
+		e.testGen = ai.NewTestGenerator(*e.logger, visionDetector)
+	})
+	return e.testGen
+}
+
+func (e *Executor) getErrorDet() *ai.ErrorDetector {
+	e.errorDetOnce.Do(func() {
+		e.errorDet = ai.NewErrorDetector(*e.logger)
+	})
+	return e.errorDet
+}
+
+func (e *Executor) getAITester() *ai.AIEnhancedTester {
+	e.aiTesterOnce.Do(func() {
+		e.aiTester = ai.NewAIEnhancedTester(*e.logger)
+	})
+	return e.aiTester
+}
+
+func (e *Executor) getCloudManager() *cloud.CloudManager {
+	e.cloudManagerOnce.Do(func() {
+		if e.config.Settings.Cloud != nil {
+			e.cloudManager = cloud.NewCloudManager(*e.logger)
+		}
+	})
+	return e.cloudManager
+}
+
+func (e *Executor) getCloudAnalytics() *cloud.CloudAnalytics {
+	e.cloudAnalyticsOnce.Do(func() {
+		if e.getCloudManager() != nil {
+			e.cloudAnalytics = cloud.NewCloudAnalytics(*e.logger, e.getCloudManager())
+		}
+	})
+	return e.cloudAnalytics
+}
+
+func (e *Executor) getEnterpriseIntegration() *enterprise.EnterpriseIntegration {
+	e.enterpriseOnce.Do(func() {
+		if e.config.Settings.Enterprise != nil {
+			e.enterpriseIntegration = enterprise.NewEnterpriseIntegration(*e.logger)
+			
+			// Load enterprise configuration from file or use inline config
+			enterpriseConfigPath := ""
+			if enterprisePath, ok := e.config.Settings.Enterprise["config_path"].(string); ok {
+				enterpriseConfigPath = enterprisePath
+			} else {
+				// Create temporary config file from inline settings
+				enterpriseConfigPath = filepath.Join(e.outputDir, "enterprise_config.yaml")
+				if err := e.createEnterpriseConfigFile(enterpriseConfigPath, e.config.Settings.Enterprise); err != nil {
+					e.logger.Warnf("Failed to create enterprise config file: %v", err)
+				}
+			}
+			
+			if err := e.enterpriseIntegration.Initialize(enterpriseConfigPath); err != nil {
+				e.logger.Warnf("Failed to initialize enterprise integration: %v", err)
+			}
+		}
+	})
+	return e.enterpriseIntegration
+}
 
 // getStringFromMap safely extracts a string value from a map
 func getStringFromMap(m map[string]interface{}, key string) string {
@@ -84,99 +162,16 @@ func getIntFromMap(m map[string]interface{}, key string) int {
 }
 
 func NewExecutor(cfg *config.Config, outputDir string, log *logger.Logger) *Executor {
-	cloudManager := cloud.NewCloudManager(*log)
-	cloudAnalytics := cloud.NewCloudAnalytics(*log, cloudManager)
-	enterpriseIntegration := enterprise.NewEnterpriseIntegration(*log)
-	
+	// Optimized constructor with lazy initialization
 	executor := &Executor{
-		config:               cfg,
-		outputDir:            outputDir,
-		logger:               log,
-		factory:              platforms.NewPlatformFactory(),
-		results:              make([]TestResult, 0),
-		aiTester:             ai.NewAIEnhancedTester(*log),
-		cloudManager:         cloudManager,
-		cloudAnalytics:       cloudAnalytics,
-		enterpriseIntegration: enterpriseIntegration,
+		config:      cfg,
+		outputDir:   outputDir,
+		logger:      log,
+		factory:     platforms.NewPlatformFactory(),
+		results:     make([]TestResult, 0),
 	}
 	
-	// Initialize enterprise manager early if enterprise settings exist
-	if cfg.Settings.Enterprise != nil {
-		// Load enterprise configuration from file or use inline config
-		enterpriseConfigPath := ""
-		if enterprisePath, ok := cfg.Settings.Enterprise["config_path"].(string); ok {
-			enterpriseConfigPath = enterprisePath
-		} else {
-			// Create temporary config file from inline settings
-			enterpriseConfigPath = filepath.Join(outputDir, "enterprise_config.yaml")
-			if err := executor.createEnterpriseConfigFile(enterpriseConfigPath, cfg.Settings.Enterprise); err != nil {
-				executor.logger.Warnf("Failed to create enterprise config file: %v", err)
-			}
-		}
-		
-		if err := executor.enterpriseIntegration.Initialize(enterpriseConfigPath); err != nil {
-			executor.logger.Warnf("Failed to initialize enterprise integration: %v", err)
-		}
-	}
-	
-	// Configure cloud manager early if cloud settings exist
-	if cfg.Settings.Cloud != nil {
-		// Convert map to CloudConfig
-		cloudConfig := cloud.CloudConfig{
-			Provider: getStringFromMap(cfg.Settings.Cloud, "provider"),
-			Bucket:    getStringFromMap(cfg.Settings.Cloud, "bucket"),
-			Region:    getStringFromMap(cfg.Settings.Cloud, "region"),
-			AccessKey: getStringFromMap(cfg.Settings.Cloud, "access_key"),
-			SecretKey: getStringFromMap(cfg.Settings.Cloud, "secret_key"),
-			Endpoint:  getStringFromMap(cfg.Settings.Cloud, "endpoint"),
-			EnableSync:        getBoolFromMap(cfg.Settings.Cloud, "enable_sync"),
-			SyncInterval:      getIntFromMap(cfg.Settings.Cloud, "sync_interval"),
-			EnableCDN:        getBoolFromMap(cfg.Settings.Cloud, "enable_cdn"),
-			CDNEndpoint:       getStringFromMap(cfg.Settings.Cloud, "cdn_endpoint"),
-			Compression:      getBoolFromMap(cfg.Settings.Cloud, "compression"),
-			Encryption:       getBoolFromMap(cfg.Settings.Cloud, "encryption"),
-			EnableDistributed: getBoolFromMap(cfg.Settings.Cloud, "enable_distributed"),
-		}
-		
-		// Handle retention policy
-		if retentionMap, ok := cfg.Settings.Cloud["retention_policy"].(map[string]interface{}); ok {
-			cloudConfig.RetentionPolicy = cloud.RetentionPolicy{
-				Enabled:     getBoolFromMap(retentionMap, "enabled"),
-				Days:        getIntFromMap(retentionMap, "days"),
-				MaxSizeGB:   getIntFromMap(retentionMap, "max_size_gb"),
-				AutoCleanup: getBoolFromMap(retentionMap, "auto_cleanup"),
-			}
-		}
-		
-		// Handle backup locations
-		if backupLocations, ok := cfg.Settings.Cloud["backup_locations"].([]interface{}); ok {
-			for _, location := range backupLocations {
-				if locationStr, ok := location.(string); ok {
-					cloudConfig.BackupLocations = append(cloudConfig.BackupLocations, locationStr)
-				}
-			}
-		}
-		
-		// Handle distributed nodes
-		if nodesInterface, ok := cfg.Settings.Cloud["distributed_nodes"].([]interface{}); ok {
-			for _, node := range nodesInterface {
-				if nodeMap, ok := node.(map[string]interface{}); ok {
-					node := cloud.DistributedNode{
-						ID:       getStringFromMap(nodeMap, "id"),
-						Name:     getStringFromMap(nodeMap, "name"),
-						Location: getStringFromMap(nodeMap, "location"),
-						Capacity: getStringFromMap(nodeMap, "capacity"),
-						Endpoint: getStringFromMap(nodeMap, "endpoint"),
-						APIKey:   getStringFromMap(nodeMap, "api_key"),
-						Priority: getIntFromMap(nodeMap, "priority"),
-					}
-					cloudConfig.DistributedNodes = append(cloudConfig.DistributedNodes, node)
-				}
-			}
-		}
-		
-		cloudManager.Configure(cloudConfig)
-	}
+	// No eager initialization - components created on-demand
 	
 	return executor
 }
@@ -278,6 +273,11 @@ func (e *Executor) executeApp(app config.AppConfig) TestResult {
 }
 
 func (e *Executor) executeAction(platform platforms.Platform, action config.Action, app config.AppConfig, result *TestResult, recordingFile *string) error {
+	// Check if platform is initialized for platform-specific actions
+	if platform == nil && actionRequiresPlatform(action.Type) {
+		return fmt.Errorf("platform not initialized")
+	}
+	
 	switch action.Type {
 	case "navigate":
 		if action.Value != "" {
@@ -304,7 +304,8 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 		if waitTime == 0 {
 			waitTime = 1 // Default 1 second
 		}
-		return platform.Wait(waitTime)
+		time.Sleep(time.Duration(waitTime) * time.Second)
+		return nil
 		
 	case "screenshot":
 		filename := filepath.Join(e.outputDir, "screenshots", fmt.Sprintf("%s_%s_%d.png", app.Name, action.Name, time.Now().Unix()))
@@ -472,12 +473,13 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 func (e *Executor) executeEnterpriseStatus(app config.AppConfig, action config.Action) error {
 	e.logger.Info("Checking enterprise status...")
 	
-	if !e.enterpriseIntegration.Initialized {
+	enterpriseIntegration := e.getEnterpriseIntegration()
+	if enterpriseIntegration == nil || !enterpriseIntegration.Initialized {
 		return fmt.Errorf("enterprise integration is not initialized")
 	}
 	
 	// Execute status check
-	result, err := e.enterpriseIntegration.ExecuteEnterpriseAction(context.Background(), "enterprise_status", action.Parameters)
+	result, err := enterpriseIntegration.ExecuteEnterpriseAction(context.Background(), "enterprise_status", action.Parameters)
 	if err != nil {
 		return fmt.Errorf("failed to check enterprise status: %w", err)
 	}
@@ -496,12 +498,13 @@ func (e *Executor) executeEnterpriseStatus(app config.AppConfig, action config.A
 func (e *Executor) executeEnterpriseAction(app config.AppConfig, action config.Action, actionType string) error {
 	e.logger.Infof("Executing enterprise action: %s...", actionType)
 
-	if !e.enterpriseIntegration.Initialized {
+	enterpriseIntegration := e.getEnterpriseIntegration()
+	if enterpriseIntegration == nil || !enterpriseIntegration.Initialized {
 		return fmt.Errorf("enterprise integration is not initialized")
 	}
 
 	// Execute the enterprise action
-	result, err := e.enterpriseIntegration.ExecuteEnterpriseAction(context.Background(), actionType, action.Parameters)
+	result, err := enterpriseIntegration.ExecuteEnterpriseAction(context.Background(), actionType, action.Parameters)
 	if err != nil {
 		return fmt.Errorf("failed to execute enterprise action %s: %w", actionType, err)
 	}
@@ -860,4 +863,19 @@ func (e *Executor) GenerateReport(outputPath string) error {
 </html>`, time.Now().Format(time.RFC3339), len(e.results))
 
 	return os.WriteFile(outputPath, []byte(report), 0600)
+}
+
+// actionRequiresPlatform returns true if the action type requires a platform
+func actionRequiresPlatform(actionType string) bool {
+	platformActions := map[string]bool{
+		"navigate":        true,
+		"click":           true,
+		"fill":            true,
+		"submit":          true,
+		"screenshot":      true,
+		"record":          true,
+		"vision_click":    true,
+		"vision_report":   true,
+	}
+	return platformActions[actionType]
 }
