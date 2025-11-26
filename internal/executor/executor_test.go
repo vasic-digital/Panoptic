@@ -881,7 +881,7 @@ func TestExecutor_SaveEnterpriseActionResult(t *testing.T) {
 		"count":  42,
 	}
 
-	err := executor.saveEnterpriseActionResult("test_action", result, "test/result.json")
+	err := executor.saveEnterpriseActionResultSilent("test_action", result, "test/result.json")
 	assert.NoError(t, err)
 
 	// Verify file was created

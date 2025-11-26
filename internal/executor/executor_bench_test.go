@@ -365,7 +365,7 @@ func BenchmarkExecutor_SaveEnterpriseActionResult(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		outputPath := filepath.Join("enterprise", "result.json")
-		if err := executor.saveEnterpriseActionResult("test_action", result, outputPath); err != nil {
+		if err := executor.saveEnterpriseActionResultSilent("test_action", result, outputPath); err != nil {
 			b.Fatal(err)
 		}
 		// Clean up for next iteration

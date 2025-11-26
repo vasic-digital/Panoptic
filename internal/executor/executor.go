@@ -760,6 +760,16 @@ func (e *Executor) executeEnterpriseAction(app config.AppConfig, action config.A
 
 // saveEnterpriseActionResult saves enterprise action result to file
 func (e *Executor) saveEnterpriseActionResult(actionType string, result interface{}, outputPath string) error {
+	return e.saveEnterpriseActionResultWithLogging(actionType, result, outputPath, true)
+}
+
+// saveEnterpriseActionResultSilent saves enterprise action result to file without logging
+func (e *Executor) saveEnterpriseActionResultSilent(actionType string, result interface{}, outputPath string) error {
+	return e.saveEnterpriseActionResultWithLogging(actionType, result, outputPath, false)
+}
+
+// saveEnterpriseActionResultWithLogging saves enterprise action result to file with optional logging
+func (e *Executor) saveEnterpriseActionResultWithLogging(actionType string, result interface{}, outputPath string, enableLogging bool) error {
 	// Create full output path
 	fullPath := filepath.Join(e.outputDir, outputPath)
 
@@ -780,7 +790,9 @@ func (e *Executor) saveEnterpriseActionResult(actionType string, result interfac
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
-	e.logger.Infof("Enterprise action %s result saved to: %s", actionType, fullPath)
+	if enableLogging {
+		e.logger.Infof("Enterprise action %s result saved to: %s", actionType, fullPath)
+	}
 	return nil
 }
 

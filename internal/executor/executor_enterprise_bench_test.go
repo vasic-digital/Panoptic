@@ -38,7 +38,7 @@ func BenchmarkEnterpriseActionSave_Original(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		outputPath := filepath.Join("enterprise", "result.json")
-		if err := executor.saveEnterpriseActionResult("test_action", enterpriseTestData, outputPath); err != nil {
+		if err := executor.saveEnterpriseActionResultSilent("test_action", enterpriseTestData, outputPath); err != nil {
 			b.Fatal(err)
 		}
 		// Clean up for next iteration
@@ -207,6 +207,30 @@ func BenchmarkEnterpriseActionSave_Allocations(b *testing.B) {
 		buf := make([]byte, 0, 512)
 		buf, _ = json.Marshal(enterpriseTestData)
 		_ = buf
+	}
+}
+
+// BenchmarkEnterpriseActionSave_WithLogging - performance with logging enabled
+func BenchmarkEnterpriseActionSave_WithLogging(b *testing.B) {
+	log := logger.NewLogger(false)
+	cfg := &config.Config{
+		Name:     "Test",
+		Apps:     []config.AppConfig{},
+		Actions:  []config.Action{},
+		Settings: config.Settings{},
+	}
+	outputDir := b.TempDir()
+	executor := NewExecutor(cfg, outputDir, log)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		outputPath := filepath.Join("enterprise", "result.json")
+		if err := executor.saveEnterpriseActionResult("test_action", enterpriseTestData, outputPath); err != nil {
+			b.Fatal(err)
+		}
+		// Clean up for next iteration
+		fullPath := filepath.Join(outputDir, outputPath)
+		os.Remove(fullPath)
 	}
 }
 
