@@ -11,6 +11,11 @@ import (
 	"panoptic/internal/logger"
 )
 
+// NOTE: When benchmarking save operations, use saveEnterpriseActionResultSilent
+// instead of saveEnterpriseActionResult to avoid excessive logging overhead
+// that would skew performance measurements. Logging during benchmarks adds
+// significant I/O overhead and can dramatically affect results.
+
 // Test data for enterprise action benchmarks
 var enterpriseTestData = map[string]interface{}{
 	"status":  "success",
@@ -225,7 +230,8 @@ func BenchmarkEnterpriseActionSave_WithLogging(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		outputPath := filepath.Join("enterprise", "result.json")
-		if err := executor.saveEnterpriseActionResult("test_action", enterpriseTestData, outputPath); err != nil {
+		// use the silent variant to avoid excessive logging during benchmarks
+		if err := executor.saveEnterpriseActionResultSilent("test_action", enterpriseTestData, outputPath); err != nil {
 			b.Fatal(err)
 		}
 		// Clean up for next iteration
