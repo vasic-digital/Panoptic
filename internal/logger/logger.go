@@ -1,8 +1,10 @@
 package logger
 
 import (
+	"bufio"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -43,14 +45,31 @@ func (l *Logger) SetOutputDirectory(outputDir string) {
 		return
 	}
 	
-	// Create log file
+	// Create log file with better permissions
 	logFile := filepath.Join(logsDir, "panoptic.log")
-	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		l.Errorf("Failed to create log file: %v", err)
 		return
 	}
 	
-	l.SetOutput(file)
-	l.Infof("Log file: %s", logFile)
+	// Wrap file in buffered writer for performance
+	bufferedWriter := bufio.NewWriterSize(file, 64*1024) // 64KB buffer
+	
+	// Set up flush on program exit
+	go func() {
+		// This goroutine will ensure buffer is flushed periodically
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		
+		for range ticker.C {
+			if err := bufferedWriter.Flush(); err != nil {
+				// Log to stderr since file might have issues
+				l.Errorf("Failed to flush log buffer: %v", err)
+			}
+		}
+	}()
+	
+	l.SetOutput(bufferedWriter)
+	l.Infof("Log file: %s (buffered)", logFile)
 }

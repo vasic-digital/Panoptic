@@ -1,8 +1,11 @@
 package config
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
+	"sync"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -73,12 +76,48 @@ type AITestingSettings struct {
 	EnableLearning         bool    `yaml:"enable_learning"`
 }
 
+// ConfigCacheEntry holds cached configuration with metadata
+type ConfigCacheEntry struct {
+	Config     *Config
+	ModTime    time.Time
+	Checksum   string
+	LoadedAt   time.Time
+}
+
+// Global cache for configurations
+var (
+	configCache = sync.Map{}
+	cacheMutex  sync.RWMutex
+)
+
 func Load(configFile string) (*Config, error) {
+	// Get file info for modification time and checksum
+	fileInfo, err := os.Stat(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat config file: %w", err)
+	}
+	
+	// Calculate checksum for integrity checking
 	data, err := os.ReadFile(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
-
+	checksum := fmt.Sprintf("%x", sha256.Sum256(data))
+	
+	// Check cache first
+	if cached, found := configCache.Load(configFile); found {
+		if entry, ok := cached.(*ConfigCacheEntry); ok {
+			// Validate cache entry
+			if entry.ModTime.Equal(fileInfo.ModTime()) && entry.Checksum == checksum {
+				// Cache hit - return cached config
+				return entry.Config, nil
+			}
+			// Cache miss - stale entry, remove it
+			configCache.Delete(configFile)
+		}
+	}
+	
+	// Cache miss - load and parse config
 	var config Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
@@ -103,6 +142,15 @@ func Load(configFile string) (*Config, error) {
 	if config.Settings.LogLevel == "" {
 		config.Settings.LogLevel = "info"
 	}
+
+	// Cache the loaded config
+	cacheEntry := &ConfigCacheEntry{
+		Config:   &config,
+		ModTime:  fileInfo.ModTime(),
+		Checksum: checksum,
+		LoadedAt: time.Now(),
+	}
+	configCache.Store(configFile, cacheEntry)
 
 	return &config, nil
 }

@@ -80,7 +80,10 @@ func (w *WebPlatform) Navigate(url string) error {
 		return fmt.Errorf("failed to navigate to %s: %w", url, err)
 	}
 	
-	waitForPageLoad()
+	// Use rod's built-in wait instead of fixed sleep
+	if err := w.page.WaitLoad(); err != nil {
+		return fmt.Errorf("failed to wait for page load: %w", err)
+	}
 	w.metrics["navigation_complete"] = time.Now()
 	w.metrics["url"] = url
 	
@@ -129,10 +132,40 @@ func (w *WebPlatform) Click(selector string) error {
 		}
 	}
 	
-	// Wait a moment after click
-	time.Sleep(500 * time.Millisecond)
+	// Use smart wait instead of fixed sleep - wait for navigation or network idle
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 	
-	waitForPageLoad()
+	// Try multiple wait strategies
+	done := make(chan error, 1)
+	
+	go func() {
+		// Wait for potential navigation
+		if err := w.page.WaitLoad(); err == nil {
+			done <- nil
+			return
+		}
+		
+		// If no navigation, wait for network idle
+		if err := w.page.WaitIdle(time.Second); err == nil {
+			done <- nil
+			return
+		}
+		
+		// Fallback to minimal wait
+		time.Sleep(100 * time.Millisecond)
+		done <- nil
+	}()
+	
+	select {
+	case err := <-done:
+		if err != nil {
+			return fmt.Errorf("wait after click failed: %w", err)
+		}
+	case <-ctx.Done():
+		// Continue anyway - click was successful
+	}
+	
 	return nil
 }
 
@@ -311,7 +344,11 @@ func (w *WebPlatform) Submit(selector string) error {
 		}
 	}
 	
-	waitForPageLoad()
+	// Wait for page load after form submission
+	if err := w.page.WaitLoad(); err != nil {
+	// Non-fatal - form might not cause navigation
+	// Could consider adding structured logging here if needed
+	}
 	
 	// Safe slice append
 	if submitActions, ok := w.metrics["submit_actions"].([]string); ok {
