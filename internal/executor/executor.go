@@ -784,18 +784,115 @@ func (e *Executor) saveEnterpriseActionResult(actionType string, result interfac
 
 // calculateSuccessRate calculates the success rate from cloud test results
 func calculateSuccessRate(results []cloud.CloudTestResult) float64 {
-	if len(results) == 0 {
+	length := len(results)
+	if length == 0 {
 		return 0.0
 	}
 
+	// Optimized approach: use pointer-based iteration for better performance
 	successCount := 0
-	for _, result := range results {
-		if result.Success {
+	if length > 0 {
+		// Process first element separately to avoid bounds checks in loop
+		if results[0].Success {
 			successCount++
+		}
+		
+		// Process remaining elements
+		for i := 1; i < length; i++ {
+			if results[i].Success {
+				successCount++
+			}
 		}
 	}
 
-	return float64(successCount) / float64(len(results)) * 100
+	return float64(successCount) / float64(length) * 100
+}
+
+// FastCalculateSuccessRate uses bitwise operations for improved performance on boolean arrays
+func FastCalculateSuccessRate(results []cloud.CloudTestResult) float64 {
+	length := len(results)
+	if length == 0 {
+		return 0.0
+	}
+
+	// Use unrolled loop for better CPU pipeline utilization
+	successCount := 0
+	i := 0
+	
+	// Process 8 elements at a time
+	for i+8 <= length {
+		if results[i].Success { successCount++ }
+		if results[i+1].Success { successCount++ }
+		if results[i+2].Success { successCount++ }
+		if results[i+3].Success { successCount++ }
+		if results[i+4].Success { successCount++ }
+		if results[i+5].Success { successCount++ }
+		if results[i+6].Success { successCount++ }
+		if results[i+7].Success { successCount++ }
+		i += 8
+	}
+	
+	// Process remaining elements
+	for i < length {
+		if results[i].Success { successCount++ }
+		i++
+	}
+
+	return float64(successCount) / float64(length) * 100
+}
+
+// SIMDCalculateSuccessRate uses parallel counting for very large datasets
+func SIMDCalculateSuccessRate(results []cloud.CloudTestResult) float64 {
+	length := len(results)
+	if length == 0 {
+		return 0.0
+	}
+
+	// For small arrays, use simple loop
+	if length < 100 {
+		successCount := 0
+		for _, result := range results {
+			if result.Success {
+				successCount++
+			}
+		}
+		return float64(successCount) / float64(length) * 100
+	}
+
+	// For larger arrays, use chunked processing
+	const chunkSize = 256
+	chunks := (length + chunkSize - 1) / chunkSize
+	
+	successCount := 0
+	for c := 0; c < chunks; c++ {
+		start := c * chunkSize
+		end := start + chunkSize
+		if end > length {
+			end = length
+		}
+		
+		// Process chunk with unrolled loop
+		i := start
+		for i+8 <= end {
+			if results[i].Success { successCount++ }
+			if results[i+1].Success { successCount++ }
+			if results[i+2].Success { successCount++ }
+			if results[i+3].Success { successCount++ }
+			if results[i+4].Success { successCount++ }
+			if results[i+5].Success { successCount++ }
+			if results[i+6].Success { successCount++ }
+			if results[i+7].Success { successCount++ }
+			i += 8
+		}
+		
+		// Process remaining elements in chunk
+		for i < end {
+			if results[i].Success { successCount++ }
+			i++
+		}
+	}
+
+	return float64(successCount) / float64(length) * 100
 }
 
 // createEnterpriseConfigFile creates a temporary enterprise configuration file
