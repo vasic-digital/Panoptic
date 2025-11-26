@@ -114,7 +114,8 @@ func appendJSONString(buf []byte, s string) []byte {
 		default:
 			if r < 32 {
 				buf = append(buf, '\\', 'u', '0', '0')
-				buf = append(buf, byte('0'+(r>>4)), byte('0'+(r&0xF)))
+				hex := "0123456789abcdef"
+				buf = append(buf, hex[r>>4], hex[r&0xF])
 			} else {
 				buf = append(buf, byte(r))
 			}
