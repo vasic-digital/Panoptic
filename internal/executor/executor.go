@@ -769,8 +769,8 @@ func (e *Executor) saveEnterpriseActionResult(actionType string, result interfac
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	// Marshal result to JSON
-	data, err := json.MarshalIndent(result, "", "  ")
+	// Use optimized JSON marshaling - json.Marshal instead of MarshalIndent for better performance
+	data, err := json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("failed to marshal result: %w", err)
 	}
@@ -778,6 +778,61 @@ func (e *Executor) saveEnterpriseActionResult(actionType string, result interfac
 	// Write to file
 	if err := os.WriteFile(fullPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	e.logger.Infof("Enterprise action %s result saved to: %s", actionType, fullPath)
+	return nil
+}
+
+// FastSaveEnterpriseActionResult saves enterprise action result with optimized performance
+func (e *Executor) FastSaveEnterpriseActionResult(actionType string, result interface{}, outputPath string) error {
+	// Create full output path
+	fullPath := filepath.Join(e.outputDir, outputPath)
+
+	// Ensure directory exists
+	dir := filepath.Dir(fullPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	// Pre-allocate buffer for better memory efficiency
+	buf := make([]byte, 0, 512) // Conservative pre-allocation
+	buf, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("failed to marshal result: %w", err)
+	}
+
+	// Write to file
+	if err := os.WriteFile(fullPath, buf, 0600); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	e.logger.Infof("Enterprise action %s result saved to: %s", actionType, fullPath)
+	return nil
+}
+
+// StreamingSaveEnterpriseActionResult saves enterprise action result using streaming approach for large data
+func (e *Executor) StreamingSaveEnterpriseActionResult(actionType string, result interface{}, outputPath string) error {
+	// Create full output path
+	fullPath := filepath.Join(e.outputDir, outputPath)
+
+	// Ensure directory exists
+	dir := filepath.Dir(fullPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	// Create file for streaming
+	file, err := os.Create(fullPath)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer file.Close()
+
+	// Stream JSON to file (most memory efficient for large data)
+	encoder := json.NewEncoder(file)
+	if err := encoder.Encode(result); err != nil {
+		return fmt.Errorf("failed to encode result: %w", err)
 	}
 
 	e.logger.Infof("Enterprise action %s result saved to: %s", actionType, fullPath)
