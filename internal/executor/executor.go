@@ -475,9 +475,10 @@ func (e *Executor) executeApp(app config.AppConfig) TestResult {
 	
 	defer platform.Close()
 	
-	// Execute actions
+	// Execute actions - use per-app actions if defined, otherwise global actions
+	actions := e.config.GetActionsForApp(app)
 	currentRecordingFile := ""
-	for i, action := range e.config.Actions {
+	for i, action := range actions {
 		e.logger.Debugf("Executing action %d: %s (%s)", i, action.Name, action.Type)
 		
 		if err := e.executeAction(platform, action, app, &result, &currentRecordingFile); err != nil {
@@ -514,9 +515,11 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 	
 	switch action.Type {
 	case "navigate":
-		if action.Value != "" {
-			return platform.Navigate(action.Value)
+		navURL := action.GetNavigateURL()
+		if navURL == "" {
+			return fmt.Errorf("navigate action '%s' requires a URL or value", action.Name)
 		}
+		return platform.Navigate(navURL)
 		
 	case "click":
 		if action.Selector != "" {
@@ -1243,13 +1246,7 @@ func (e *Executor) saveEnterpriseReport(report interface{}, filePath string) err
 // GenerateReport generates an HTML report from test results
 func (e *Executor) GenerateReport(outputPath string) error {
 	e.logger.Infof("Generating report: %s", outputPath)
-
-	// TODO: Implement comprehensive HTML report generation
-	// This is a stub implementation
-
-	// Use the fastest approach based on benchmark results
-	// FastestGenerateReport provides the best balance of speed and memory efficiency
-	return FastestGenerateReport(outputPath, e.results)
+	return GenerateComprehensiveReport(outputPath, e.results)
 }
 
 // FastGenerateReport optimized version using strings.Builder and pre-allocated buffer

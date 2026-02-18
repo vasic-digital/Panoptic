@@ -577,8 +577,8 @@ func TestExecutor_GenerateReport(t *testing.T) {
 	content, err := os.ReadFile(reportPath)
 	assert.NoError(t, err)
 	assert.Contains(t, string(content), "<!DOCTYPE html>")
-	assert.Contains(t, string(content), "Test Report")
-	assert.Contains(t, string(content), "Total Tests: 2")
+	assert.Contains(t, string(content), "Panoptic Test Report")
+	assert.Contains(t, string(content), "Total Apps")
 }
 
 func TestExecutor_GenerateReport_EmptyResults(t *testing.T) {
@@ -600,7 +600,7 @@ func TestExecutor_GenerateReport_EmptyResults(t *testing.T) {
 
 	content, err := os.ReadFile(reportPath)
 	assert.NoError(t, err)
-	assert.Contains(t, string(content), "Total Tests: 0")
+	assert.Contains(t, string(content), `<div class="value">0</div>`)
 }
 
 // Test save enterprise report

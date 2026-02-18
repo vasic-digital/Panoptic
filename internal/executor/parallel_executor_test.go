@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -161,46 +162,63 @@ func TestExecuteActionGroup(t *testing.T) {
 
 // MockPlatform is a simple mock for testing
 type MockPlatform struct {
+	mu              sync.Mutex
 	executedActions []config.Action
-	metrics        map[string]interface{}
+	metrics         map[string]interface{}
 }
 
 func (m *MockPlatform) Initialize(app config.AppConfig) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.metrics["initialized"] = true
 	return nil
 }
 
 func (m *MockPlatform) Navigate(url string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.executedActions = append(m.executedActions, config.Action{Type: "navigate", Value: url})
 	return nil
 }
 
 func (m *MockPlatform) Click(selector string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.executedActions = append(m.executedActions, config.Action{Type: "click", Selector: selector})
 	return nil
 }
 
 func (m *MockPlatform) Fill(selector, value string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.executedActions = append(m.executedActions, config.Action{Type: "fill", Selector: selector, Value: value})
 	return nil
 }
 
 func (m *MockPlatform) Submit(selector string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.executedActions = append(m.executedActions, config.Action{Type: "submit", Selector: selector})
 	return nil
 }
 
 func (m *MockPlatform) Wait(duration int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.executedActions = append(m.executedActions, config.Action{Type: "wait", WaitTime: duration})
 	return nil
 }
 
 func (m *MockPlatform) Screenshot(filename string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.executedActions = append(m.executedActions, config.Action{Type: "screenshot", Name: filename})
 	return nil
 }
 
 func (m *MockPlatform) StartRecording(filename string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.executedActions = append(m.executedActions, config.Action{Type: "record", Name: filename})
 	return nil
 }

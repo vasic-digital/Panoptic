@@ -28,11 +28,13 @@ type AppConfig struct {
 	Device      string            `yaml:"device"`
 	Timeout     int               `yaml:"timeout"`
 	Environment map[string]string `yaml:"environment"`
+	Actions     []Action          `yaml:"actions"` // Per-app actions (takes precedence over global actions)
 }
 
 type Action struct {
 	Name        string                 `yaml:"name"`
 	Type        string                 `yaml:"type"` // navigate, click, fill, submit, wait, screenshot, record
+	URL         string                 `yaml:"url"`  // URL for navigate actions
 	Target      string                 `yaml:"target"`
 	Value       string                 `yaml:"value"`
 	Selector    string                 `yaml:"selector"`
@@ -41,6 +43,14 @@ type Action struct {
 	Screenshot  bool                   `yaml:"screenshot"`
 	Record      bool                   `yaml:"record"`
 	Duration    int                    `yaml:"duration"`
+}
+
+// GetNavigateURL returns the URL for a navigate action, checking URL first then Value for backward compatibility.
+func (a *Action) GetNavigateURL() string {
+	if a.URL != "" {
+		return a.URL
+	}
+	return a.Value
 }
 
 type Settings struct {
@@ -167,7 +177,7 @@ func (c *Config) Validate() error {
 		if app.Type == "" {
 			return fmt.Errorf("application type is required")
 		}
-		
+
 		switch app.Type {
 		case "web":
 			if app.URL == "" {
@@ -184,7 +194,35 @@ func (c *Config) Validate() error {
 		default:
 			return fmt.Errorf("unknown application type: %s", app.Type)
 		}
+
+		// Validate per-app actions
+		for _, action := range app.Actions {
+			if action.Name == "" {
+				return fmt.Errorf("action name is required in app %s", app.Name)
+			}
+			if action.Type == "" {
+				return fmt.Errorf("action type is required for action %s in app %s", action.Name, app.Name)
+			}
+			if action.Type == "navigate" && action.GetNavigateURL() == "" {
+				return fmt.Errorf("URL or value is required for navigate action %s in app %s", action.Name, app.Name)
+			}
+		}
+	}
+
+	// Validate global actions
+	for _, action := range c.Actions {
+		if action.Type == "navigate" && action.GetNavigateURL() == "" {
+			return fmt.Errorf("URL or value is required for navigate action %s", action.Name)
+		}
 	}
 
 	return nil
+}
+
+// GetActionsForApp returns per-app actions if defined, otherwise falls back to global actions.
+func (c *Config) GetActionsForApp(app AppConfig) []Action {
+	if len(app.Actions) > 0 {
+		return app.Actions
+	}
+	return c.Actions
 }

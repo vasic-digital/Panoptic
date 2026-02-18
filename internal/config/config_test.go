@@ -367,6 +367,175 @@ apps:
 	assert.Equal(t, "info", loadedConfig.Settings.LogLevel)
 }
 
+func TestActionGetNavigateURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		action   Action
+		expected string
+	}{
+		{
+			name:     "URL field takes precedence",
+			action:   Action{URL: "https://url-field.com", Value: "https://value-field.com"},
+			expected: "https://url-field.com",
+		},
+		{
+			name:     "Falls back to Value when URL is empty",
+			action:   Action{Value: "https://value-field.com"},
+			expected: "https://value-field.com",
+		},
+		{
+			name:     "URL field only",
+			action:   Action{URL: "https://url-only.com"},
+			expected: "https://url-only.com",
+		},
+		{
+			name:     "Both empty returns empty string",
+			action:   Action{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.action.GetNavigateURL()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestPerAppActions(t *testing.T) {
+	t.Run("Load config with per-app actions", func(t *testing.T) {
+		configContent := `
+name: "Per-App Actions Test"
+apps:
+  - name: "Admin Console"
+    type: "web"
+    url: "http://localhost:3001"
+    actions:
+      - name: "navigate_login"
+        type: "navigate"
+        url: "http://localhost:3001/login"
+      - name: "fill_username"
+        type: "fill"
+        selector: "input[name='username']"
+        value: "admin"
+  - name: "Web App"
+    type: "web"
+    url: "http://localhost:3000"
+    actions:
+      - name: "navigate_home"
+        type: "navigate"
+        url: "http://localhost:3000"
+`
+		tmpFile, err := os.CreateTemp("", "test-perapp-*.yaml")
+		require.NoError(t, err)
+		defer os.Remove(tmpFile.Name())
+
+		_, err = tmpFile.WriteString(configContent)
+		require.NoError(t, err)
+		tmpFile.Close()
+
+		cfg, err := Load(tmpFile.Name())
+		assert.NoError(t, err)
+		assert.Len(t, cfg.Apps, 2)
+		assert.Len(t, cfg.Apps[0].Actions, 2)
+		assert.Len(t, cfg.Apps[1].Actions, 1)
+		assert.Equal(t, "navigate_login", cfg.Apps[0].Actions[0].Name)
+		assert.Equal(t, "http://localhost:3001/login", cfg.Apps[0].Actions[0].URL)
+	})
+
+	t.Run("Validate rejects navigate without URL in per-app actions", func(t *testing.T) {
+		cfg := Config{
+			Apps: []AppConfig{
+				{
+					Name: "Test App",
+					Type: "web",
+					URL:  "http://localhost:3000",
+					Actions: []Action{
+						{Name: "bad_navigate", Type: "navigate"}, // Missing URL and Value
+					},
+				},
+			},
+		}
+		err := cfg.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "URL or value is required for navigate action")
+	})
+
+	t.Run("Validate rejects global navigate without URL", func(t *testing.T) {
+		cfg := Config{
+			Apps: []AppConfig{
+				{Name: "App", Type: "web", URL: "http://localhost:3000"},
+			},
+			Actions: []Action{
+				{Name: "bad_nav", Type: "navigate"}, // Missing URL and Value
+			},
+		}
+		err := cfg.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "URL or value is required for navigate action")
+	})
+}
+
+func TestGetActionsForApp(t *testing.T) {
+	globalActions := []Action{
+		{Name: "global_action", Type: "navigate", URL: "https://global.com"},
+	}
+	perAppActions := []Action{
+		{Name: "app_action", Type: "navigate", URL: "https://app.com"},
+	}
+
+	cfg := Config{
+		Actions: globalActions,
+		Apps: []AppConfig{
+			{Name: "AppWithActions", Type: "web", URL: "http://localhost", Actions: perAppActions},
+			{Name: "AppWithoutActions", Type: "web", URL: "http://localhost"},
+		},
+	}
+
+	t.Run("Returns per-app actions when defined", func(t *testing.T) {
+		actions := cfg.GetActionsForApp(cfg.Apps[0])
+		assert.Len(t, actions, 1)
+		assert.Equal(t, "app_action", actions[0].Name)
+	})
+
+	t.Run("Falls back to global actions when no per-app actions", func(t *testing.T) {
+		actions := cfg.GetActionsForApp(cfg.Apps[1])
+		assert.Len(t, actions, 1)
+		assert.Equal(t, "global_action", actions[0].Name)
+	})
+}
+
+func TestLoadConfigWithURLField(t *testing.T) {
+	configContent := `
+name: "URL Field Test"
+apps:
+  - name: "Test"
+    type: "web"
+    url: "http://localhost:3001"
+actions:
+  - name: "nav_with_url"
+    type: "navigate"
+    url: "http://localhost:3001/login"
+  - name: "nav_with_value"
+    type: "navigate"
+    value: "http://localhost:3001/dashboard"
+`
+	tmpFile, err := os.CreateTemp("", "test-url-*.yaml")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	_, err = tmpFile.WriteString(configContent)
+	require.NoError(t, err)
+	tmpFile.Close()
+
+	cfg, err := Load(tmpFile.Name())
+	assert.NoError(t, err)
+	assert.Equal(t, "http://localhost:3001/login", cfg.Actions[0].URL)
+	assert.Equal(t, "http://localhost:3001/login", cfg.Actions[0].GetNavigateURL())
+	assert.Equal(t, "http://localhost:3001/dashboard", cfg.Actions[1].GetNavigateURL())
+}
+
 func TestEdgeCases(t *testing.T) {
 	t.Run("Non-existent file", func(t *testing.T) {
 		_, err := Load("/non/existent/file.yaml")
