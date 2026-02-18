@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"panoptic/internal/config"
@@ -103,32 +104,57 @@ func (w *WebPlatform) Click(selector string) error {
 	if w.page == nil {
 		return fmt.Errorf("web page not initialized")
 	}
-	
+
 	// Safe slice append
 	if clickActions, ok := w.metrics["click_actions"].([]string); ok {
 		w.metrics["click_actions"] = append(clickActions, selector)
 	}
-	
+
 	element, err := w.page.Element(selector)
 	if err != nil {
 		return fmt.Errorf("failed to find element %s: %w", selector, err)
 	}
-	
+
 	// Enhanced click with scroll into view
 	if err := element.ScrollIntoView(); err != nil {
 		// Non-fatal error, continue with click
 	}
-	
+
 	// Wait for element to be visible
 	if err := element.WaitVisible(); err != nil {
-		return fmt.Errorf("element %s not visible: %w", selector, err)
+		// Non-fatal for -32000 errors, will try JS click fallback
+		if !strings.Contains(err.Error(), "-32000") {
+			return fmt.Errorf("element %s not visible: %w", selector, err)
+		}
 	}
-	
+
 	// Click with fallback
 	if err := element.Click("left", 1); err != nil {
 		// Try alternative click method
-		if err := element.Tap(); err != nil {
-			return fmt.Errorf("failed to click element %s: %w", selector, err)
+		if tapErr := element.Tap(); tapErr != nil {
+			// If CDP errors persist (stale JavaScript execution
+			// context from React re-renders), fall back to
+			// clicking via JavaScript evaluation which runs in
+			// the current page context.
+			if strings.Contains(err.Error(), "-32000") ||
+				strings.Contains(tapErr.Error(), "-32000") {
+				jsClick := fmt.Sprintf(
+					`() => document.querySelector(%q).click()`,
+					selector,
+				)
+				_, evalErr := w.page.Eval(jsClick)
+				if evalErr != nil {
+					return fmt.Errorf(
+						"failed to click element %s: %w",
+						selector, evalErr,
+					)
+				}
+			} else {
+				return fmt.Errorf(
+					"failed to click element %s: %w",
+					selector, tapErr,
+				)
+			}
 		}
 	}
 	
