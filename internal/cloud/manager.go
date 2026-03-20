@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -34,19 +35,19 @@ type CloudManager struct {
 
 // CloudConfig contains cloud integration settings
 type CloudConfig struct {
-	Provider           string            `yaml:"provider"`             // aws, gcp, azure, local
+	Provider          string            `yaml:"provider"` // aws, gcp, azure, local
 	Bucket            string            `yaml:"bucket"`
 	Region            string            `yaml:"region"`
 	AccessKey         string            `yaml:"access_key"`
 	SecretKey         string            `yaml:"secret_key"`
 	Endpoint          string            `yaml:"endpoint"`
 	EnableSync        bool              `yaml:"enable_sync"`
-	SyncInterval      int               `yaml:"sync_interval"`       // minutes
-	EnableCDN        bool              `yaml:"enable_cdn"`
+	SyncInterval      int               `yaml:"sync_interval"` // minutes
+	EnableCDN         bool              `yaml:"enable_cdn"`
 	CDNEndpoint       string            `yaml:"cdn_endpoint"`
-	Compression      bool              `yaml:"compression"`
-	Encryption       bool              `yaml:"encryption"`
-	RetentionPolicy   RetentionPolicy    `yaml:"retention_policy"`
+	Compression       bool              `yaml:"compression"`
+	Encryption        bool              `yaml:"encryption"`
+	RetentionPolicy   RetentionPolicy   `yaml:"retention_policy"`
 	BackupLocations   []string          `yaml:"backup_locations"`
 	EnableDistributed bool              `yaml:"enable_distributed"`
 	DistributedNodes  []DistributedNode `yaml:"distributed_nodes"`
@@ -54,9 +55,9 @@ type CloudConfig struct {
 
 // RetentionPolicy defines file retention settings
 type RetentionPolicy struct {
-	Enabled    bool `yaml:"enabled"`
-	Days       int  `yaml:"days"`
-	MaxSizeGB  int  `yaml:"max_size_gb"`
+	Enabled     bool `yaml:"enabled"`
+	Days        int  `yaml:"days"`
+	MaxSizeGB   int  `yaml:"max_size_gb"`
 	AutoCleanup bool `yaml:"auto_cleanup"`
 }
 
@@ -98,56 +99,56 @@ type CloudFile struct {
 	Size         int64     `json:"size"`
 	LastModified time.Time `json:"last_modified"`
 	ETag         string    `json:"etag"`
-	ContentType   string    `json:"content_type"`
+	ContentType  string    `json:"content_type"`
 	IsFolder     bool      `json:"is_folder"`
 	URL          string    `json:"url"`
 }
 
 // CloudTestResult represents a cloud-based test execution result
 type CloudTestResult struct {
-	TestID       string                 `json:"test_id"`
-	NodeID       string                 `json:"node_id"`
-	NodeName     string                 `json:"node_name"`
-	Location     string                 `json:"location"`
-	StartTime    time.Time              `json:"start_time"`
-	EndTime      time.Time              `json:"end_time"`
-	Duration     time.Duration          `json:"duration"`
-	Success      bool                   `json:"success"`
-	Artifacts    []CloudArtifact        `json:"artifacts"`
-	Metrics      map[string]interface{} `json:"metrics"`
-	Error        string                 `json:"error,omitempty"`
-	Timestamp    time.Time              `json:"timestamp"`
+	TestID    string                 `json:"test_id"`
+	NodeID    string                 `json:"node_id"`
+	NodeName  string                 `json:"node_name"`
+	Location  string                 `json:"location"`
+	StartTime time.Time              `json:"start_time"`
+	EndTime   time.Time              `json:"end_time"`
+	Duration  time.Duration          `json:"duration"`
+	Success   bool                   `json:"success"`
+	Artifacts []CloudArtifact        `json:"artifacts"`
+	Metrics   map[string]interface{} `json:"metrics"`
+	Error     string                 `json:"error,omitempty"`
+	Timestamp time.Time              `json:"timestamp"`
 }
 
 // CloudArtifact represents a test artifact stored in cloud
 type CloudArtifact struct {
-	Name        string    `json:"name"`
-	Type        string    `json:"type"`        // screenshot, video, report, log
-	Path        string    `json:"path"`
-	Size        int64     `json:"size"`
-	URL         string    `json:"url"`
-	ETag        string    `json:"etag"`
+	Name         string    `json:"name"`
+	Type         string    `json:"type"` // screenshot, video, report, log
+	Path         string    `json:"path"`
+	Size         int64     `json:"size"`
+	URL          string    `json:"url"`
+	ETag         string    `json:"etag"`
 	ContentType  string    `json:"content_type"`
 	LastModified time.Time `json:"last_modified"`
 }
 
 // CloudAnalytics provides cloud-based analytics
 type CloudAnalytics struct {
-	Logger         logger.Logger
-	Manager        *CloudManager
-	Enabled        bool
-	AnalyticsData  []AnalyticsDataPoint
+	Logger        logger.Logger
+	Manager       *CloudManager
+	Enabled       bool
+	AnalyticsData []AnalyticsDataPoint
 }
 
 // AnalyticsDataPoint represents a single analytics data point
 type AnalyticsDataPoint struct {
-	Timestamp   time.Time         `json:"timestamp"`
-	TestCount   int               `json:"test_count"`
-	SuccessRate float64           `json:"success_rate"`
-	ErrorCount  int               `json:"error_count"`
-	NodeCount   int               `json:"node_count"`
-	Region      string            `json:"region"`
-	Provider    string            `json:"provider"`
+	Timestamp   time.Time          `json:"timestamp"`
+	TestCount   int                `json:"test_count"`
+	SuccessRate float64            `json:"success_rate"`
+	ErrorCount  int                `json:"error_count"`
+	NodeCount   int                `json:"node_count"`
+	Region      string             `json:"region"`
+	Provider    string             `json:"provider"`
 	Metrics     map[string]float64 `json:"metrics"`
 }
 
@@ -284,7 +285,7 @@ func (cm *CloudManager) ExecuteDistributedTest(ctx context.Context, testConfig i
 // executeTestOnNode executes test on a specific distributed node
 func (cm *CloudManager) executeTestOnNode(ctx context.Context, testConfig interface{}, node DistributedNode, testID string) (*CloudTestResult, error) {
 	startTime := time.Now()
-	
+
 	cm.Logger.Infof("Executing test on node %s (%s)", node.Name, node.Location)
 
 	// Simulate distributed test execution
@@ -294,13 +295,13 @@ func (cm *CloudManager) executeTestOnNode(ctx context.Context, testConfig interf
 		NodeID:    node.ID,
 		NodeName:  node.Name,
 		Location:  node.Location,
-		StartTime:  startTime,
-		EndTime:    time.Now(),
-		Success:    true,
-		Artifacts:  []CloudArtifact{},
-		Metrics:    map[string]interface{}{
-			"node_capacity": node.Capacity,
-			"priority":      node.Priority,
+		StartTime: startTime,
+		EndTime:   time.Now(),
+		Success:   true,
+		Artifacts: []CloudArtifact{},
+		Metrics: map[string]interface{}{
+			"node_capacity":  node.Capacity,
+			"priority":       node.Priority,
 			"execution_time": time.Since(startTime).Seconds(),
 		},
 		Timestamp: startTime,
@@ -421,7 +422,7 @@ func (cm *CloudManager) EnableCDN(ctx context.Context) error {
 	}
 
 	cm.Logger.Infof("Enabling CDN with endpoint: %s", cm.Config.CDNEndpoint)
-	
+
 	// In real implementation, this would configure CDN settings
 	return nil
 }
@@ -444,7 +445,7 @@ func (cm *CloudManager) GenerateCloudReport(ctx context.Context) (*CloudReport, 
 	// Gather test execution statistics
 	report.TotalTests = len(cm.TestResults)
 	report.SuccessfulTests = cm.countSuccessfulResults(cm.TestResults)
-	
+
 	if report.TotalTests > 0 {
 		report.SuccessRate = float64(report.SuccessfulTests) / float64(report.TotalTests) * 100
 	}
@@ -465,27 +466,27 @@ func (cm *CloudManager) GenerateCloudReport(ctx context.Context) (*CloudReport, 
 
 // CloudReport contains comprehensive cloud analytics
 type CloudReport struct {
-	GeneratedAt      time.Time     `json:"generated_at"`
-	Provider         string        `json:"provider"`
-	Region           string        `json:"region"`
-	Bucket           string        `json:"bucket"`
-	TotalTests       int           `json:"total_tests"`
-	SuccessfulTests  int           `json:"successful_tests"`
-	SuccessRate      float64       `json:"success_rate"`
-	StorageStats     StorageStats  `json:"storage_stats"`
-	Recommendations  []string      `json:"recommendations"`
+	GeneratedAt     time.Time    `json:"generated_at"`
+	Provider        string       `json:"provider"`
+	Region          string       `json:"region"`
+	Bucket          string       `json:"bucket"`
+	TotalTests      int          `json:"total_tests"`
+	SuccessfulTests int          `json:"successful_tests"`
+	SuccessRate     float64      `json:"success_rate"`
+	StorageStats    StorageStats `json:"storage_stats"`
+	Recommendations []string     `json:"recommendations"`
 }
 
 // StorageStats contains cloud storage statistics
 type StorageStats struct {
-	TotalFiles       int              `json:"total_files"`
-	TotalSize        int64            `json:"total_size"`
-	TotalSizeGB      float64          `json:"total_size_gb"`
-	FileTypeCounts   map[string]int   `json:"file_type_counts"`
-	AverageFileSize  float64          `json:"average_file_size"`
-	LargestFile      string           `json:"largest_file"`
-	OldestFile       string           `json:"oldest_file"`
-	NewestFile       string           `json:"newest_file"`
+	TotalFiles      int            `json:"total_files"`
+	TotalSize       int64          `json:"total_size"`
+	TotalSizeGB     float64        `json:"total_size_gb"`
+	FileTypeCounts  map[string]int `json:"file_type_counts"`
+	AverageFileSize float64        `json:"average_file_size"`
+	LargestFile     string         `json:"largest_file"`
+	OldestFile      string         `json:"oldest_file"`
+	NewestFile      string         `json:"newest_file"`
 }
 
 // calculateStorageStats calculates cloud storage statistics
@@ -602,7 +603,7 @@ func (ca *CloudAnalytics) GenerateAnalyticsReport(ctx context.Context) (*Analyti
 	ca.Logger.Info("Generating cloud analytics report")
 
 	report := &AnalyticsReport{
-		GeneratedAt:    time.Now(),
+		GeneratedAt:     time.Now(),
 		DataPoints:      len(ca.AnalyticsData),
 		AnalyticsData:   ca.AnalyticsData,
 		Recommendations: ca.generateAnalyticsRecommendations(),
@@ -618,19 +619,19 @@ func (ca *CloudAnalytics) GenerateAnalyticsReport(ctx context.Context) (*Analyti
 
 // AnalyticsReport contains comprehensive analytics report
 type AnalyticsReport struct {
-	GeneratedAt     time.Time          `json:"generated_at"`
-	DataPoints      int                `json:"data_points"`
-	SummaryStats    SummaryStats       `json:"summary_stats"`
+	GeneratedAt     time.Time            `json:"generated_at"`
+	DataPoints      int                  `json:"data_points"`
+	SummaryStats    SummaryStats         `json:"summary_stats"`
 	AnalyticsData   []AnalyticsDataPoint `json:"analytics_data"`
-	Recommendations []string           `json:"recommendations"`
+	Recommendations []string             `json:"recommendations"`
 }
 
 // SummaryStats contains summary statistics
 type SummaryStats struct {
-	TotalTests       int     `json:"total_tests"`
-	AverageSuccess   float64 `json:"average_success"`
-	TotalNodes       int     `json:"total_nodes"`
-	TotalRegions     int     `json:"total_regions"`
+	TotalTests      int     `json:"total_tests"`
+	AverageSuccess  float64 `json:"average_success"`
+	TotalNodes      int     `json:"total_nodes"`
+	TotalRegions    int     `json:"total_regions"`
 	MostActiveDay   string  `json:"most_active_day"`
 	PeakConcurrency int     `json:"peak_concurrency"`
 }
@@ -722,6 +723,7 @@ func (ca *CloudAnalytics) calculateAverageSuccessRate(n int) float64 {
 
 	return total / float64(count)
 }
+
 // Upload uploads a file to cloud storage
 func (m *CloudManager) Upload(filePath string) error {
 	m.Logger.Debugf("Uploading file: %s", filePath)
@@ -738,8 +740,8 @@ func (m *CloudManager) Upload(filePath string) error {
 	}
 
 	// Generate unique cloud path
-	cloudPath := fmt.Sprintf("%s/%s", 
-		time.Now().Format("2006/01/02"), 
+	cloudPath := fmt.Sprintf("%s/%s",
+		time.Now().Format("2006/01/02"),
 		filepath.Base(filePath))
 
 	// Perform upload based on provider
@@ -763,7 +765,7 @@ func (m *CloudManager) uploadToAWS(localPath, cloudPath string, fileInfo os.File
 
 	// In a real implementation, this would use the AWS SDK
 	// For now, we simulate the upload with detailed logging
-	
+
 	// Simulate upload progress
 	m.Logger.Debugf("Connecting to S3 bucket: %s", m.Config.Bucket)
 	m.Logger.Debugf("Uploading file of size: %d bytes", fileInfo.Size())
@@ -777,19 +779,19 @@ func (m *CloudManager) uploadToAWS(localPath, cloudPath string, fileInfo os.File
 
 	// Simulate successful upload
 	m.Logger.Infof("Successfully uploaded to S3: s3://%s/%s", m.Config.Bucket, cloudPath)
-	
+
 	// Store upload metadata for later reference
 	uploadMetadata := map[string]interface{}{
-		"provider":        "aws",
-		"bucket":          m.Config.Bucket,
-		"cloud_path":      cloudPath,
-		"local_path":      localPath,
-		"file_size":       fileInfo.Size(),
-		"upload_time":     time.Now().Format(time.RFC3339),
-		"content_type":    "application/octet-stream",
-		"etag":            fmt.Sprintf("\"%x\"", time.Now().UnixNano()),
+		"provider":     "aws",
+		"bucket":       m.Config.Bucket,
+		"cloud_path":   cloudPath,
+		"local_path":   localPath,
+		"file_size":    fileInfo.Size(),
+		"upload_time":  time.Now().Format(time.RFC3339),
+		"content_type": "application/octet-stream",
+		"etag":         fmt.Sprintf("\"%x\"", time.Now().UnixNano()),
 	}
-	
+
 	// Add to test results for tracking
 	result := CloudTestResult{
 		TestID:    fmt.Sprintf("upload_%d", time.Now().UnixNano()),
@@ -797,9 +799,9 @@ func (m *CloudManager) uploadToAWS(localPath, cloudPath string, fileInfo os.File
 		NodeName:  "Local Upload",
 		Location:  "local",
 		StartTime: time.Now(),
-		EndTime:  time.Now(),
-		Duration: time.Since(time.Now()),
-		Success:  true,
+		EndTime:   time.Now(),
+		Duration:  time.Since(time.Now()),
+		Success:   true,
 		Artifacts: []CloudArtifact{
 			{
 				Name:        filepath.Base(cloudPath),
@@ -813,7 +815,7 @@ func (m *CloudManager) uploadToAWS(localPath, cloudPath string, fileInfo os.File
 		Timestamp: time.Now(),
 	}
 	m.TestResults = append(m.TestResults, result)
-	
+
 	return nil
 }
 
@@ -824,7 +826,7 @@ func (m *CloudManager) uploadToGCP(localPath, cloudPath string, fileInfo os.File
 	// Simulate GCP upload
 	m.Logger.Debugf("Connecting to GCP bucket: %s", m.Config.Bucket)
 	m.Logger.Debugf("Uploading file of size: %d bytes", fileInfo.Size())
-	
+
 	// Simulate upload delay
 	delay := time.Duration(fileInfo.Size() / 1000000)
 	if delay > 0 {
@@ -832,18 +834,18 @@ func (m *CloudManager) uploadToGCP(localPath, cloudPath string, fileInfo os.File
 	}
 
 	m.Logger.Infof("Successfully uploaded to GCP: gs://%s/%s", m.Config.Bucket, cloudPath)
-	
+
 	uploadMetadata := map[string]interface{}{
-		"provider":        "gcp",
-		"bucket":          m.Config.Bucket,
-		"cloud_path":      cloudPath,
-		"local_path":      localPath,
-		"file_size":       fileInfo.Size(),
-		"upload_time":     time.Now().Format(time.RFC3339),
-		"content_type":    "application/octet-stream",
-		"generation":      fmt.Sprintf("%d", time.Now().UnixNano()),
+		"provider":     "gcp",
+		"bucket":       m.Config.Bucket,
+		"cloud_path":   cloudPath,
+		"local_path":   localPath,
+		"file_size":    fileInfo.Size(),
+		"upload_time":  time.Now().Format(time.RFC3339),
+		"content_type": "application/octet-stream",
+		"generation":   fmt.Sprintf("%d", time.Now().UnixNano()),
 	}
-	
+
 	// Add to test results for tracking
 	result := CloudTestResult{
 		TestID:    fmt.Sprintf("upload_%d", time.Now().UnixNano()),
@@ -851,9 +853,9 @@ func (m *CloudManager) uploadToGCP(localPath, cloudPath string, fileInfo os.File
 		NodeName:  "Local Upload",
 		Location:  "local",
 		StartTime: time.Now(),
-		EndTime:  time.Now(),
-		Duration: time.Since(time.Now()),
-		Success:  true,
+		EndTime:   time.Now(),
+		Duration:  time.Since(time.Now()),
+		Success:   true,
 		Artifacts: []CloudArtifact{
 			{
 				Name:        filepath.Base(cloudPath),
@@ -867,7 +869,7 @@ func (m *CloudManager) uploadToGCP(localPath, cloudPath string, fileInfo os.File
 		Timestamp: time.Now(),
 	}
 	m.TestResults = append(m.TestResults, result)
-	
+
 	return nil
 }
 
@@ -878,27 +880,27 @@ func (m *CloudManager) uploadToAzure(localPath, cloudPath string, fileInfo os.Fi
 	// Simulate Azure upload
 	m.Logger.Debugf("Connecting to Azure container: %s", m.Config.Bucket)
 	m.Logger.Debugf("Uploading file of size: %d bytes", fileInfo.Size())
-	
+
 	// Simulate upload delay
 	delay := time.Duration(fileInfo.Size() / 1000000)
 	if delay > 0 {
 		time.Sleep(delay)
 	}
 
-	m.Logger.Infof("Successfully uploaded to Azure: https://%s.blob.core.windows.net/%s/%s", 
+	m.Logger.Infof("Successfully uploaded to Azure: https://%s.blob.core.windows.net/%s/%s",
 		m.Config.Bucket, m.Config.Bucket, cloudPath)
-	
+
 	uploadMetadata := map[string]interface{}{
-		"provider":        "azure",
-		"container":       m.Config.Bucket,
-		"cloud_path":      cloudPath,
-		"local_path":      localPath,
-		"file_size":       fileInfo.Size(),
-		"upload_time":     time.Now().Format(time.RFC3339),
-		"content_type":    "application/octet-stream",
-		"blob_id":         fmt.Sprintf("%d", time.Now().UnixNano()),
+		"provider":     "azure",
+		"container":    m.Config.Bucket,
+		"cloud_path":   cloudPath,
+		"local_path":   localPath,
+		"file_size":    fileInfo.Size(),
+		"upload_time":  time.Now().Format(time.RFC3339),
+		"content_type": "application/octet-stream",
+		"blob_id":      fmt.Sprintf("%d", time.Now().UnixNano()),
 	}
-	
+
 	// Add to test results for tracking
 	result := CloudTestResult{
 		TestID:    fmt.Sprintf("upload_%d", time.Now().UnixNano()),
@@ -906,9 +908,9 @@ func (m *CloudManager) uploadToAzure(localPath, cloudPath string, fileInfo os.Fi
 		NodeName:  "Local Upload",
 		Location:  "local",
 		StartTime: time.Now(),
-		EndTime:  time.Now(),
-		Duration: time.Since(time.Now()),
-		Success:  true,
+		EndTime:   time.Now(),
+		Duration:  time.Since(time.Now()),
+		Success:   true,
 		Artifacts: []CloudArtifact{
 			{
 				Name:        filepath.Base(cloudPath),
@@ -922,7 +924,7 @@ func (m *CloudManager) uploadToAzure(localPath, cloudPath string, fileInfo os.Fi
 		Timestamp: time.Now(),
 	}
 	m.TestResults = append(m.TestResults, result)
-	
+
 	return nil
 }
 
@@ -943,17 +945,17 @@ func (m *CloudManager) uploadToLocal(localPath, cloudPath string, fileInfo os.Fi
 	}
 
 	m.Logger.Infof("Successfully uploaded to local storage: %s", destPath)
-	
+
 	uploadMetadata := map[string]interface{}{
-		"provider":        "local",
-		"bucket":          m.Config.Bucket,
-		"cloud_path":      cloudPath,
-		"local_path":      localPath,
-		"file_size":       fileInfo.Size(),
-		"upload_time":     time.Now().Format(time.RFC3339),
-		"content_type":    "application/octet-stream",
+		"provider":     "local",
+		"bucket":       m.Config.Bucket,
+		"cloud_path":   cloudPath,
+		"local_path":   localPath,
+		"file_size":    fileInfo.Size(),
+		"upload_time":  time.Now().Format(time.RFC3339),
+		"content_type": "application/octet-stream",
 	}
-	
+
 	// Add to test results for tracking
 	result := CloudTestResult{
 		TestID:    fmt.Sprintf("upload_%d", time.Now().UnixNano()),
@@ -961,9 +963,9 @@ func (m *CloudManager) uploadToLocal(localPath, cloudPath string, fileInfo os.Fi
 		NodeName:  "Local Upload",
 		Location:  "local",
 		StartTime: time.Now(),
-		EndTime:  time.Now(),
-		Duration: time.Since(time.Now()),
-		Success:  true,
+		EndTime:   time.Now(),
+		Duration:  time.Since(time.Now()),
+		Success:   true,
 		Artifacts: []CloudArtifact{
 			{
 				Name:        filepath.Base(cloudPath),
@@ -977,7 +979,7 @@ func (m *CloudManager) uploadToLocal(localPath, cloudPath string, fileInfo os.Fi
 		Timestamp: time.Now(),
 	}
 	m.TestResults = append(m.TestResults, result)
-	
+
 	return nil
 }
 
@@ -1005,23 +1007,77 @@ func copyFile(src, dst string) error {
 func (ca *CloudAnalytics) GenerateAnalytics(results interface{}) (interface{}, error) {
 	ca.Logger.Debug("Generating cloud analytics...")
 
-	// TODO: Implement analytics generation
-	// This is a stub implementation
-
-	analytics := map[string]interface{}{
-		"status": "not_implemented",
-		"message": "Analytics generation not yet implemented",
+	// Validate input
+	if results == nil {
+		return nil, fmt.Errorf("results cannot be nil")
 	}
 
-	return analytics, fmt.Errorf("analytics generation not yet implemented")
+	// Generate analytics from accumulated data points
+	analytics := map[string]interface{}{
+		"generated_at":      time.Now().UTC().Format(time.RFC3339),
+		"total_data_points": len(ca.AnalyticsData),
+		"status":            "generated",
+	}
+
+	// Calculate aggregate metrics
+	if len(ca.AnalyticsData) > 0 {
+		var totalTests int
+		var avgSuccessRate float64
+		var totalErrors int
+		var uniqueRegions = make(map[string]bool)
+		var uniqueProviders = make(map[string]bool)
+
+		for _, dp := range ca.AnalyticsData {
+			totalTests += dp.TestCount
+			avgSuccessRate += dp.SuccessRate
+			totalErrors += dp.ErrorCount
+			uniqueRegions[dp.Region] = true
+			uniqueProviders[dp.Provider] = true
+		}
+
+		analytics["total_tests"] = totalTests
+		analytics["average_success_rate"] = avgSuccessRate / float64(len(ca.AnalyticsData))
+		analytics["total_errors"] = totalErrors
+		analytics["unique_regions"] = len(uniqueRegions)
+		analytics["unique_providers"] = len(uniqueProviders)
+		analytics["data_points"] = ca.AnalyticsData
+	}
+
+	ca.Logger.Info("Analytics generated successfully")
+	return analytics, nil
 }
 
 // SaveReport saves analytics report to a file
 func (ca *CloudAnalytics) SaveReport(analytics interface{}, path string) error {
 	ca.Logger.Debugf("Saving analytics report to %s...", path)
 
-	// TODO: Implement report saving
-	// This is a stub implementation
+	// Validate inputs
+	if analytics == nil {
+		return fmt.Errorf("analytics cannot be nil")
+	}
+	if path == "" {
+		return fmt.Errorf("path cannot be empty")
+	}
 
-	return fmt.Errorf("analytics report saving not yet implemented")
+	// Create directory if it doesn't exist
+	dir := filepath.Dir(path)
+	if dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+	}
+
+	// Marshal analytics to JSON
+	data, err := json.MarshalIndent(analytics, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal analytics: %w", err)
+	}
+
+	// Write to file
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("failed to write report file: %w", err)
+	}
+
+	ca.Logger.Infof("Analytics report saved successfully to %s", path)
+	return nil
 }
