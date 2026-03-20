@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## MANDATORY: No CI/CD Pipelines
+
+**NO GitHub Actions, GitLab CI/CD, or any automated pipeline may exist in this repository!**
+
+- No `.github/workflows/` directory
+- No `.gitlab-ci.yml` file
+- No Jenkinsfile, .travis.yml, .circleci, or any other CI configuration
+- All builds and tests are run manually or via Makefile targets
+- This rule is permanent and non-negotiable
+
 ## Project Overview
 
 Panoptic is a comprehensive automated testing and recording framework for web, desktop, and mobile applications. It's written in Go and uses a YAML-based configuration system to define test scenarios with advanced features including AI-enhanced testing, cloud storage integration, and enterprise management capabilities.
