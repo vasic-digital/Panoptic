@@ -1007,77 +1007,157 @@ func copyFile(src, dst string) error {
 func (ca *CloudAnalytics) GenerateAnalytics(results interface{}) (interface{}, error) {
 	ca.Logger.Debug("Generating cloud analytics...")
 
-	// Validate input
-	if results == nil {
-		return nil, fmt.Errorf("results cannot be nil")
-	}
+	// Get test results from the manager
+	testResults := ca.Manager.TestResults
 
-	// Generate analytics from accumulated data points
-	analytics := map[string]interface{}{
-		"generated_at":      time.Now().UTC().Format(time.RFC3339),
-		"total_data_points": len(ca.AnalyticsData),
-		"status":            "generated",
+	if len(testResults) == 0 {
+		return nil, fmt.Errorf("no test results available for analytics")
 	}
 
 	// Calculate aggregate metrics
-	if len(ca.AnalyticsData) > 0 {
-		var totalTests int
-		var avgSuccessRate float64
-		var totalErrors int
-		var uniqueRegions = make(map[string]bool)
-		var uniqueProviders = make(map[string]bool)
+	var totalTests int
+	var successfulTests int
+	var failedTests int
+	var totalDuration time.Duration
 
-		for _, dp := range ca.AnalyticsData {
-			totalTests += dp.TestCount
-			avgSuccessRate += dp.SuccessRate
-			totalErrors += dp.ErrorCount
-			uniqueRegions[dp.Region] = true
-			uniqueProviders[dp.Provider] = true
+	// Track unique nodes and regions
+	uniqueNodes := make(map[string]bool)
+	uniqueRegions := make(map[string]bool)
+
+	// Track metrics across all tests
+	metricSums := make(map[string]float64)
+	metricCounts := make(map[string]int)
+
+	// Process each test result
+	for _, result := range testResults {
+		totalTests++
+
+		if result.Success {
+			successfulTests++
+		} else {
+			failedTests++
 		}
 
-		analytics["total_tests"] = totalTests
-		analytics["average_success_rate"] = avgSuccessRate / float64(len(ca.AnalyticsData))
-		analytics["total_errors"] = totalErrors
-		analytics["unique_regions"] = len(uniqueRegions)
-		analytics["unique_providers"] = len(uniqueProviders)
-		analytics["data_points"] = ca.AnalyticsData
+		totalDuration += result.Duration
+		uniqueNodes[result.NodeID] = true
+		uniqueRegions[result.Location] = true
+
+		// Aggregate metrics
+		for key, value := range result.Metrics {
+			if floatVal, ok := toFloat64(value); ok {
+				metricSums[key] += floatVal
+				metricCounts[key]++
+			}
+		}
 	}
 
-	ca.Logger.Info("Analytics generated successfully")
+	// Calculate averages
+	averageMetrics := make(map[string]float64)
+	for key, sum := range metricSums {
+		if count := metricCounts[key]; count > 0 {
+			averageMetrics[key] = sum / float64(count)
+		}
+	}
+
+	// Calculate success rate
+	successRate := float64(0)
+	if totalTests > 0 {
+		successRate = float64(successfulTests) / float64(totalTests) * 100
+	}
+
+	// Calculate average duration
+	avgDuration := time.Duration(0)
+	if totalTests > 0 {
+		avgDuration = totalDuration / time.Duration(totalTests)
+	}
+
+	// Create analytics report
+	analytics := map[string]interface{}{
+		"summary": map[string]interface{}{
+			"total_tests":      totalTests,
+			"successful_tests": successfulTests,
+			"failed_tests":     failedTests,
+			"success_rate":     successRate,
+			"total_duration":   totalDuration.String(),
+			"average_duration": avgDuration.String(),
+			"unique_nodes":     len(uniqueNodes),
+			"unique_regions":   len(uniqueRegions),
+		},
+		"nodes":        getMapKeys(uniqueNodes),
+		"regions":      getMapKeys(uniqueRegions),
+		"metrics":      averageMetrics,
+		"provider":     ca.Manager.Config.Provider,
+		"generated_at": time.Now().Format(time.RFC3339),
+	}
+
+	// Add the analytics data point
+	dataPoint := AnalyticsDataPoint{
+		Timestamp:   time.Now(),
+		TestCount:   totalTests,
+		SuccessRate: successRate,
+		ErrorCount:  failedTests,
+		NodeCount:   len(uniqueNodes),
+		Region:      ca.Manager.Config.Region,
+		Provider:    ca.Manager.Config.Provider,
+		Metrics:     averageMetrics,
+	}
+	ca.AnalyticsData = append(ca.AnalyticsData, dataPoint)
+
+	ca.Logger.Infof("Generated analytics for %d tests with %.2f%% success rate", totalTests, successRate)
+
 	return analytics, nil
 }
 
-// SaveReport saves analytics report to a file
+// toFloat64 converts interface{} to float64 if possible
+func toFloat64(v interface{}) (float64, bool) {
+	switch val := v.(type) {
+	case float64:
+		return val, true
+	case float32:
+		return float64(val), true
+	case int:
+		return float64(val), true
+	case int64:
+		return float64(val), true
+	case uint:
+		return float64(val), true
+	case uint64:
+		return float64(val), true
+	default:
+		return 0, false
+	}
+}
+
+// getMapKeys returns all keys from a map
+func getMapKeys(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+// SaveReport saves analytics report to a file in JSON format
 func (ca *CloudAnalytics) SaveReport(analytics interface{}, path string) error {
 	ca.Logger.Debugf("Saving analytics report to %s...", path)
 
-	// Validate inputs
-	if analytics == nil {
-		return fmt.Errorf("analytics cannot be nil")
-	}
-	if path == "" {
-		return fmt.Errorf("path cannot be empty")
-	}
-
 	// Create directory if it doesn't exist
 	dir := filepath.Dir(path)
-	if dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("failed to create directory: %w", err)
-		}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
 	// Marshal analytics to JSON
-	data, err := json.MarshalIndent(analytics, "", "  ")
+	jsonData, err := json.MarshalIndent(analytics, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal analytics: %w", err)
 	}
 
 	// Write to file
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		return fmt.Errorf("failed to write report file: %w", err)
+	if err := os.WriteFile(path, jsonData, 0644); err != nil {
+		return fmt.Errorf("failed to write report to %s: %w", path, err)
 	}
 
-	ca.Logger.Infof("Analytics report saved successfully to %s", path)
+	ca.Logger.Infof("Analytics report saved to %s", path)
 	return nil
 }
