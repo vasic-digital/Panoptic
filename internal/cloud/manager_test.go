@@ -2,8 +2,11 @@ package cloud
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -383,7 +386,7 @@ func TestCloudAnalytics_GenerateAnalyticsRecommendations(t *testing.T) {
 	}
 }
 
-// TestCloudAnalytics_GenerateAnalytics tests analytics generation stub
+// TestCloudAnalytics_GenerateAnalytics tests analytics generation with CloudTestResults
 func TestCloudAnalytics_GenerateAnalytics(t *testing.T) {
 	log := logger.NewLogger(false)
 	analytics := &CloudAnalytics{
@@ -392,19 +395,289 @@ func TestCloudAnalytics_GenerateAnalytics(t *testing.T) {
 	}
 
 	results := []CloudTestResult{
-		{Success: true},
+		{TestID: "t1", Success: true, Duration: 100 * time.Millisecond},
+		{TestID: "t2", Success: true, Duration: 200 * time.Millisecond},
+		{TestID: "t3", Success: false, Duration: 50 * time.Millisecond, Error: "timeout"},
 	}
 
 	data, err := analytics.GenerateAnalytics(results)
 
-	// Implementation returns data with "not_implemented" status instead of error
-	if err != nil {
-		assert.Contains(t, err.Error(), "not", "Should indicate not implemented")
+	require.NoError(t, err, "GenerateAnalytics should not return error")
+	require.NotNil(t, data, "Analytics data should not be nil")
+
+	m, ok := data.(map[string]interface{})
+	require.True(t, ok, "Analytics should be a map[string]interface{}")
+
+	assert.Equal(t, 3, m["total"])
+	assert.Equal(t, 2, m["passed"])
+	assert.Equal(t, 1, m["failed"])
+	assert.Equal(t, 0, m["skipped"])
+
+	successRate, ok := m["success_rate"].(float64)
+	require.True(t, ok)
+	assert.InDelta(t, 66.66, successRate, 0.1, "Success rate ~66.67%%")
+
+	avgDur, ok := m["average_duration_ms"].(float64)
+	require.True(t, ok)
+	assert.Greater(t, avgDur, 0.0, "Average duration should be positive")
+
+	patterns, ok := m["failure_patterns"].(map[string]int)
+	require.True(t, ok)
+	assert.Equal(t, 1, patterns["timeout"])
+}
+
+// TestCloudAnalytics_GenerateAnalytics_NilResults tests nil input
+func TestCloudAnalytics_GenerateAnalytics_NilResults(t *testing.T) {
+	log := logger.NewLogger(false)
+	analytics := &CloudAnalytics{
+		Logger:  *log,
+		Enabled: true,
 	}
-	// May return data with status message
-	if data != nil {
-		t.Logf("Analytics returned: %v", data)
+
+	data, err := analytics.GenerateAnalytics(nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, data)
+
+	m := data.(map[string]interface{})
+	assert.Equal(t, 0, m["total"])
+	assert.Equal(t, 0, m["passed"])
+}
+
+// TestCloudAnalytics_GenerateAnalytics_EmptySlice tests empty result slice
+func TestCloudAnalytics_GenerateAnalytics_EmptySlice(t *testing.T) {
+	log := logger.NewLogger(false)
+	analytics := &CloudAnalytics{
+		Logger:  *log,
+		Enabled: true,
 	}
+
+	data, err := analytics.GenerateAnalytics([]CloudTestResult{})
+
+	require.NoError(t, err)
+	require.NotNil(t, data)
+
+	m := data.(map[string]interface{})
+	assert.Equal(t, 0, m["total"])
+	assert.Equal(t, 0.0, m["success_rate"])
+}
+
+// TestCloudAnalytics_GenerateAnalytics_SlowestTests verifies top-10 cap
+func TestCloudAnalytics_GenerateAnalytics_SlowestTests(t *testing.T) {
+	log := logger.NewLogger(false)
+	analytics := &CloudAnalytics{
+		Logger:  *log,
+		Enabled: true,
+	}
+
+	// Create 15 results with varying durations
+	results := make([]CloudTestResult, 15)
+	for i := range results {
+		results[i] = CloudTestResult{
+			TestID:   fmt.Sprintf("t%d", i),
+			Success:  true,
+			Duration: time.Duration(i+1) * time.Second,
+		}
+	}
+
+	data, err := analytics.GenerateAnalytics(results)
+	require.NoError(t, err)
+
+	m := data.(map[string]interface{})
+	slowest := m["slowest_tests"]
+	require.NotNil(t, slowest, "slowest_tests should be present")
+
+	// Must be capped at 10
+	rv := reflect.ValueOf(slowest)
+	assert.Equal(t, 10, rv.Len(), "slowest_tests should be capped at 10")
+}
+
+// TestCloudAnalytics_GenerateAnalytics_FailurePatterns verifies grouping
+func TestCloudAnalytics_GenerateAnalytics_FailurePatterns(t *testing.T) {
+	log := logger.NewLogger(false)
+	analytics := &CloudAnalytics{
+		Logger:  *log,
+		Enabled: true,
+	}
+
+	results := []CloudTestResult{
+		{Success: false, Error: "connection refused"},
+		{Success: false, Error: "connection refused"},
+		{Success: false, Error: "timeout"},
+		{Success: false}, // empty error -> "unknown error"
+		{Success: true},
+	}
+
+	data, err := analytics.GenerateAnalytics(results)
+	require.NoError(t, err)
+
+	m := data.(map[string]interface{})
+	patterns := m["failure_patterns"].(map[string]int)
+	assert.Equal(t, 2, patterns["connection refused"])
+	assert.Equal(t, 1, patterns["timeout"])
+	assert.Equal(t, 1, patterns["unknown error"])
+	assert.Equal(t, 4, m["failed"])
+	assert.Equal(t, 1, m["passed"])
+}
+
+// TestCloudAnalytics_GenerateAnalytics_ReflectionFallback tests with a
+// non-CloudTestResult struct slice (simulating executor.TestResult).
+func TestCloudAnalytics_GenerateAnalytics_ReflectionFallback(t *testing.T) {
+	log := logger.NewLogger(false)
+	analytics := &CloudAnalytics{
+		Logger:  *log,
+		Enabled: true,
+	}
+
+	// Anonymous struct that mirrors executor.TestResult's key fields
+	type FakeResult struct {
+		Success  bool
+		Duration time.Duration
+		Error    string
+	}
+
+	results := []FakeResult{
+		{Success: true, Duration: 500 * time.Millisecond},
+		{Success: false, Duration: 1 * time.Second, Error: "assertion failed"},
+	}
+
+	data, err := analytics.GenerateAnalytics(results)
+	require.NoError(t, err)
+	require.NotNil(t, data)
+
+	m := data.(map[string]interface{})
+	assert.Equal(t, 2, m["total"])
+	assert.Equal(t, 1, m["passed"])
+	assert.Equal(t, 1, m["failed"])
+	assert.InDelta(t, 50.0, m["success_rate"].(float64), 0.1)
+
+	patterns := m["failure_patterns"].(map[string]int)
+	assert.Equal(t, 1, patterns["assertion failed"])
+}
+
+// TestCloudAnalytics_SaveReport tests report saving to file
+func TestCloudAnalytics_SaveReport(t *testing.T) {
+	log := logger.NewLogger(false)
+	analytics := &CloudAnalytics{
+		Logger:  *log,
+		Enabled: true,
+	}
+
+	testData := map[string]interface{}{
+		"total":        5,
+		"passed":       4,
+		"success_rate": 80.0,
+	}
+
+	reportPath := filepath.Join(t.TempDir(), "report.json")
+	err := analytics.SaveReport(testData, reportPath)
+
+	require.NoError(t, err, "SaveReport should not error")
+
+	// Verify the file exists and is valid JSON
+	content, err := os.ReadFile(reportPath)
+	require.NoError(t, err, "Should read saved report")
+
+	var parsed map[string]interface{}
+	err = json.Unmarshal(content, &parsed)
+	require.NoError(t, err, "Report should be valid JSON")
+
+	// Check metadata envelope
+	metadata, ok := parsed["metadata"].(map[string]interface{})
+	require.True(t, ok, "Should have metadata")
+	assert.NotEmpty(t, metadata["generated_at"], "Should have timestamp")
+	assert.Equal(t, "1.0.0", metadata["version"], "Should have version")
+
+	// Check analytics data
+	analyticsData, ok := parsed["analytics"].(map[string]interface{})
+	require.True(t, ok, "Should have analytics data")
+	assert.Equal(t, float64(5), analyticsData["total"])
+	assert.Equal(t, float64(4), analyticsData["passed"])
+}
+
+// TestCloudAnalytics_SaveReport_EmptyPath tests error on empty path
+func TestCloudAnalytics_SaveReport_EmptyPath(t *testing.T) {
+	log := logger.NewLogger(false)
+	analytics := &CloudAnalytics{
+		Logger:  *log,
+		Enabled: true,
+	}
+
+	err := analytics.SaveReport("some data", "")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "empty")
+}
+
+// TestCloudAnalytics_SaveReport_CreatesDirectory tests directory creation
+func TestCloudAnalytics_SaveReport_CreatesDirectory(t *testing.T) {
+	log := logger.NewLogger(false)
+	analytics := &CloudAnalytics{
+		Logger:  *log,
+		Enabled: true,
+	}
+
+	reportPath := filepath.Join(t.TempDir(), "nested", "dir", "report.json")
+	err := analytics.SaveReport(map[string]string{"key": "value"}, reportPath)
+
+	require.NoError(t, err)
+
+	_, err = os.Stat(reportPath)
+	assert.NoError(t, err, "Report file should exist")
+}
+
+// TestCloudAnalytics_SaveReport_AtomicWrite verifies no partial file on success
+func TestCloudAnalytics_SaveReport_AtomicWrite(t *testing.T) {
+	log := logger.NewLogger(false)
+	analytics := &CloudAnalytics{
+		Logger:  *log,
+		Enabled: true,
+	}
+
+	dir := t.TempDir()
+	reportPath := filepath.Join(dir, "atomic_report.json")
+
+	err := analytics.SaveReport(map[string]int{"count": 42}, reportPath)
+	require.NoError(t, err)
+
+	// No temp files should remain
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Equal(t, 1, len(entries), "Only the final report file should exist")
+	assert.Equal(t, "atomic_report.json", entries[0].Name())
+}
+
+// TestCloudAnalytics_GenerateAndSave_Integration tests the full pipeline
+func TestCloudAnalytics_GenerateAndSave_Integration(t *testing.T) {
+	log := logger.NewLogger(false)
+	analytics := &CloudAnalytics{
+		Logger:  *log,
+		Enabled: true,
+	}
+
+	results := []CloudTestResult{
+		{TestID: "a", Success: true, Duration: 1 * time.Second},
+		{TestID: "b", Success: false, Duration: 2 * time.Second, Error: "fail"},
+	}
+
+	data, err := analytics.GenerateAnalytics(results)
+	require.NoError(t, err)
+
+	reportPath := filepath.Join(t.TempDir(), "integration_report.json")
+	err = analytics.SaveReport(data, reportPath)
+	require.NoError(t, err)
+
+	// Read back and validate
+	content, err := os.ReadFile(reportPath)
+	require.NoError(t, err)
+
+	var parsed map[string]interface{}
+	err = json.Unmarshal(content, &parsed)
+	require.NoError(t, err)
+
+	analyticsData := parsed["analytics"].(map[string]interface{})
+	assert.Equal(t, float64(2), analyticsData["total"])
+	assert.Equal(t, float64(1), analyticsData["passed"])
+	assert.Equal(t, float64(1), analyticsData["failed"])
 }
 
 // TestSyncTestResults tests test result syncing

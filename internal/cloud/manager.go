@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -1003,161 +1005,259 @@ func copyFile(src, dst string) error {
 
 // ExecuteDistributedTest executes a distributed test across nodes
 
-// GenerateAnalytics generates analytics from test results
+// GenerateAnalytics generates analytics from test results.
+// It accepts results as interface{} for flexibility — handles []CloudTestResult
+// natively, and falls back to reflection for other struct slices (e.g.,
+// executor.TestResult) that share Success, Duration, and Error fields.
 func (ca *CloudAnalytics) GenerateAnalytics(results interface{}) (interface{}, error) {
 	ca.Logger.Debug("Generating cloud analytics...")
 
-	// Get test results from the manager
-	testResults := ca.Manager.TestResults
-
-	if len(testResults) == 0 {
-		return nil, fmt.Errorf("no test results available for analytics")
+	if results == nil {
+		return ca.buildEmptyAnalytics(), nil
 	}
 
-	// Calculate aggregate metrics
-	var totalTests int
-	var successfulTests int
-	var failedTests int
-	var totalDuration time.Duration
-
-	// Track unique nodes and regions
-	uniqueNodes := make(map[string]bool)
-	uniqueRegions := make(map[string]bool)
-
-	// Track metrics across all tests
-	metricSums := make(map[string]float64)
-	metricCounts := make(map[string]int)
-
-	// Process each test result
-	for _, result := range testResults {
-		totalTests++
-
-		if result.Success {
-			successfulTests++
-		} else {
-			failedTests++
-		}
-
-		totalDuration += result.Duration
-		uniqueNodes[result.NodeID] = true
-		uniqueRegions[result.Location] = true
-
-		// Aggregate metrics
-		for key, value := range result.Metrics {
-			if floatVal, ok := toFloat64(value); ok {
-				metricSums[key] += floatVal
-				metricCounts[key]++
-			}
-		}
+	// Attempt native []CloudTestResult path first.
+	if cloudResults, ok := results.([]CloudTestResult); ok {
+		return ca.generateFromCloudResults(cloudResults), nil
 	}
 
-	// Calculate averages
-	averageMetrics := make(map[string]float64)
-	for key, sum := range metricSums {
-		if count := metricCounts[key]; count > 0 {
-			averageMetrics[key] = sum / float64(count)
-		}
+	// Fallback: use reflection to handle any slice of structs that expose
+	// Success (bool), Duration (time.Duration), and Error (string) fields.
+	rv := reflect.ValueOf(results)
+	if rv.Kind() == reflect.Slice {
+		return ca.generateFromReflectedSlice(rv), nil
 	}
 
-	// Calculate success rate
-	successRate := float64(0)
-	if totalTests > 0 {
-		successRate = float64(successfulTests) / float64(totalTests) * 100
-	}
-
-	// Calculate average duration
-	avgDuration := time.Duration(0)
-	if totalTests > 0 {
-		avgDuration = totalDuration / time.Duration(totalTests)
-	}
-
-	// Create analytics report
-	analytics := map[string]interface{}{
-		"summary": map[string]interface{}{
-			"total_tests":      totalTests,
-			"successful_tests": successfulTests,
-			"failed_tests":     failedTests,
-			"success_rate":     successRate,
-			"total_duration":   totalDuration.String(),
-			"average_duration": avgDuration.String(),
-			"unique_nodes":     len(uniqueNodes),
-			"unique_regions":   len(uniqueRegions),
-		},
-		"nodes":        getMapKeys(uniqueNodes),
-		"regions":      getMapKeys(uniqueRegions),
-		"metrics":      averageMetrics,
-		"provider":     ca.Manager.Config.Provider,
+	// Single non-slice value — wrap in a minimal analytics envelope.
+	return map[string]interface{}{
 		"generated_at": time.Now().Format(time.RFC3339),
-	}
-
-	// Add the analytics data point
-	dataPoint := AnalyticsDataPoint{
-		Timestamp:   time.Now(),
-		TestCount:   totalTests,
-		SuccessRate: successRate,
-		ErrorCount:  failedTests,
-		NodeCount:   len(uniqueNodes),
-		Region:      ca.Manager.Config.Region,
-		Provider:    ca.Manager.Config.Provider,
-		Metrics:     averageMetrics,
-	}
-	ca.AnalyticsData = append(ca.AnalyticsData, dataPoint)
-
-	ca.Logger.Infof("Generated analytics for %d tests with %.2f%% success rate", totalTests, successRate)
-
-	return analytics, nil
+		"total":        1,
+		"note":         "results type was not a recognized slice; returning minimal analytics",
+	}, nil
 }
 
-// toFloat64 converts interface{} to float64 if possible
-func toFloat64(v interface{}) (float64, bool) {
-	switch val := v.(type) {
-	case float64:
-		return val, true
-	case float32:
-		return float64(val), true
-	case int:
-		return float64(val), true
-	case int64:
-		return float64(val), true
-	case uint:
-		return float64(val), true
-	case uint64:
-		return float64(val), true
-	default:
-		return 0, false
+// buildEmptyAnalytics returns analytics for a nil / empty result set.
+func (ca *CloudAnalytics) buildEmptyAnalytics() map[string]interface{} {
+	return map[string]interface{}{
+		"generated_at":           time.Now().Format(time.RFC3339),
+		"total":                  0,
+		"passed":                 0,
+		"failed":                 0,
+		"skipped":                0,
+		"success_rate":           0.0,
+		"average_duration_ms":    0.0,
+		"slowest_tests":          []interface{}{},
+		"failure_patterns":       map[string]int{},
 	}
 }
 
-// getMapKeys returns all keys from a map
-func getMapKeys(m map[string]bool) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
+// generateFromCloudResults computes analytics from a native []CloudTestResult.
+func (ca *CloudAnalytics) generateFromCloudResults(results []CloudTestResult) map[string]interface{} {
+	total := len(results)
+	if total == 0 {
+		return ca.buildEmptyAnalytics()
 	}
-	return keys
+
+	passed := 0
+	failed := 0
+	var totalDuration time.Duration
+	failurePatterns := make(map[string]int)
+
+	type slowEntry struct {
+		TestID   string  `json:"test_id"`
+		NodeID   string  `json:"node_id"`
+		Duration float64 `json:"duration_ms"`
+	}
+	slowest := make([]slowEntry, 0, total)
+
+	for _, r := range results {
+		if r.Success {
+			passed++
+		} else {
+			failed++
+			errMsg := r.Error
+			if errMsg == "" {
+				errMsg = "unknown error"
+			}
+			failurePatterns[errMsg]++
+		}
+		totalDuration += r.Duration
+		slowest = append(slowest, slowEntry{
+			TestID:   r.TestID,
+			NodeID:   r.NodeID,
+			Duration: float64(r.Duration) / float64(time.Millisecond),
+		})
+	}
+
+	// Sort descending by duration and keep top 10.
+	sort.Slice(slowest, func(i, j int) bool {
+		return slowest[i].Duration > slowest[j].Duration
+	})
+	if len(slowest) > 10 {
+		slowest = slowest[:10]
+	}
+
+	avgDurationMs := (float64(totalDuration) / float64(time.Millisecond)) / float64(total)
+	successRate := float64(passed) / float64(total) * 100.0
+
+	return map[string]interface{}{
+		"generated_at":        time.Now().Format(time.RFC3339),
+		"total":               total,
+		"passed":              passed,
+		"failed":              failed,
+		"skipped":             0,
+		"success_rate":        successRate,
+		"average_duration_ms": avgDurationMs,
+		"slowest_tests":       slowest,
+		"failure_patterns":    failurePatterns,
+	}
 }
 
-// SaveReport saves analytics report to a file in JSON format
+// generateFromReflectedSlice extracts analytics from an arbitrary slice of
+// structs using reflection. It looks for fields named Success (bool),
+// Duration (time.Duration), and Error (string).
+func (ca *CloudAnalytics) generateFromReflectedSlice(rv reflect.Value) map[string]interface{} {
+	total := rv.Len()
+	if total == 0 {
+		return ca.buildEmptyAnalytics()
+	}
+
+	passed := 0
+	failed := 0
+	var totalDurationMs float64
+	hasDuration := false
+	failurePatterns := make(map[string]int)
+
+	type slowEntry struct {
+		Index      int     `json:"index"`
+		DurationMs float64 `json:"duration_ms"`
+	}
+	slowest := make([]slowEntry, 0, total)
+
+	for i := 0; i < total; i++ {
+		elem := rv.Index(i)
+		if elem.Kind() == reflect.Ptr {
+			elem = elem.Elem()
+		}
+		if elem.Kind() != reflect.Struct {
+			continue
+		}
+
+		// Success field
+		successField := elem.FieldByName("Success")
+		success := false
+		if successField.IsValid() && successField.Kind() == reflect.Bool {
+			success = successField.Bool()
+		}
+		if success {
+			passed++
+		} else {
+			failed++
+			errField := elem.FieldByName("Error")
+			errMsg := "unknown error"
+			if errField.IsValid() && errField.Kind() == reflect.String {
+				msg := errField.String()
+				if msg != "" {
+					errMsg = msg
+				}
+			}
+			failurePatterns[errMsg]++
+		}
+
+		// Duration field (time.Duration = int64 nanoseconds)
+		durField := elem.FieldByName("Duration")
+		if durField.IsValid() && durField.CanInt() {
+			hasDuration = true
+			dMs := float64(durField.Int()) / float64(time.Millisecond)
+			totalDurationMs += dMs
+			slowest = append(slowest, slowEntry{
+				Index:      i,
+				DurationMs: dMs,
+			})
+		}
+	}
+
+	// Sort descending by duration and keep top 10.
+	sort.Slice(slowest, func(i, j int) bool {
+		return slowest[i].DurationMs > slowest[j].DurationMs
+	})
+	if len(slowest) > 10 {
+		slowest = slowest[:10]
+	}
+
+	avgDurationMs := 0.0
+	if hasDuration && total > 0 {
+		avgDurationMs = totalDurationMs / float64(total)
+	}
+
+	successRate := float64(passed) / float64(total) * 100.0
+
+	return map[string]interface{}{
+		"generated_at":        time.Now().Format(time.RFC3339),
+		"total":               total,
+		"passed":              passed,
+		"failed":              failed,
+		"skipped":             0,
+		"success_rate":        successRate,
+		"average_duration_ms": avgDurationMs,
+		"slowest_tests":       slowest,
+		"failure_patterns":    failurePatterns,
+	}
+}
+
+// SaveReport saves analytics report to a file. It wraps the supplied analytics
+// data in a metadata envelope (timestamp, version) and performs an atomic write
+// via a temporary file + os.Rename so that readers never see a partial file.
 func (ca *CloudAnalytics) SaveReport(analytics interface{}, path string) error {
 	ca.Logger.Debugf("Saving analytics report to %s...", path)
 
-	// Create directory if it doesn't exist
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory %s: %w", dir, err)
+	if path == "" {
+		return fmt.Errorf("report path cannot be empty")
 	}
 
-	// Marshal analytics to JSON
-	jsonData, err := json.MarshalIndent(analytics, "", "  ")
+	// Wrap analytics in a metadata envelope.
+	envelope := map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"generated_at": time.Now().Format(time.RFC3339),
+			"version":      "1.0.0",
+		},
+		"analytics": analytics,
+	}
+
+	data, err := json.MarshalIndent(envelope, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal analytics: %w", err)
 	}
 
-	// Write to file
-	if err := os.WriteFile(path, jsonData, 0644); err != nil {
-		return fmt.Errorf("failed to write report to %s: %w", path, err)
+	// Ensure parent directory exists.
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create report directory: %w", err)
 	}
 
-	ca.Logger.Infof("Analytics report saved to %s", path)
+	// Atomic write: write to a temp file in the same directory, then rename.
+	tmpFile, err := os.CreateTemp(dir, "analytics-report-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to write report data: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to rename temp file to final path: %w", err)
+	}
+
+	ca.Logger.Infof("Analytics report saved to %s (%d bytes)", path, len(data))
 	return nil
 }
