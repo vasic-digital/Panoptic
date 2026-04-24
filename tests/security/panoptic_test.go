@@ -19,7 +19,7 @@ import (
 // TestPanopticSecurity_ConfigurationInjection tests for injection vulnerabilities in configuration
 func TestPanopticSecurity_ConfigurationInjection(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping security tests in short mode")
+		t.Skip("Skipping security tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	securityTests := []struct {
@@ -128,7 +128,7 @@ func TestPanopticSecurity_ConfigurationInjection(t *testing.T) {
 // TestPanopticSecurity_FileSystemSecurity tests file system access restrictions
 func TestPanopticSecurity_FileSystemSecurity(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping security tests in short mode")
+		t.Skip("Skipping security tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	t.Run("File access restrictions", func(t *testing.T) {
@@ -221,7 +221,7 @@ actions:
 // TestPanopticSecurity_NetworkSecurity tests network security
 func TestPanopticSecurity_NetworkSecurity(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping security tests in short mode")
+		t.Skip("Skipping security tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	securityTests := []struct {
@@ -313,7 +313,7 @@ actions:
 // TestPanopticSecurity_ResourceLimits tests for resource exhaustion attacks
 func TestPanopticSecurity_ResourceLimits(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping security tests in short mode")
+		t.Skip("Skipping security tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	t.Run("Large input handling", func(t *testing.T) {
@@ -405,7 +405,7 @@ actions:
 // TestPanopticSecurity_DataPrivacy tests for data privacy protection
 func TestPanopticSecurity_DataPrivacy(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping security tests in short mode")
+		t.Skip("Skipping security tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	t.Run("Sensitive data handling", func(t *testing.T) {
