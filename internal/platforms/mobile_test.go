@@ -642,7 +642,7 @@ func TestMobilePlatform_Integration_AndroidWorkflow(t *testing.T) {
 	// Initialize (may fail if adb not available)
 	err := platform.Initialize(app)
 	if err != nil {
-		t.Skip("Skipping Android integration test: adb not available")
+		t.Skip("Skipping Android integration test: adb not available")  // SKIP-OK: #integration-mode-only
 	}
 
 	// Test workflow
@@ -678,7 +678,7 @@ func TestMobilePlatform_Integration_iOSWorkflow(t *testing.T) {
 	// Initialize (may fail if xcrun not available)
 	err := platform.Initialize(app)
 	if err != nil {
-		t.Skip("Skipping iOS integration test: xcrun not available")
+		t.Skip("Skipping iOS integration test: xcrun not available")  // SKIP-OK: #integration-mode-only
 	}
 
 	// Test workflow

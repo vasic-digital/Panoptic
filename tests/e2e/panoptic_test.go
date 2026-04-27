@@ -17,7 +17,7 @@ import (
 
 func TestE2E_FullWorkflow(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping e2e tests in short mode")
+		t.Skip("Skipping e2e tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	binaryPath := buildPanoptic(t)
@@ -232,7 +232,7 @@ settings:
 
 func TestE2E_RecordingWorkflow(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping e2e tests in short mode")
+		t.Skip("Skipping e2e tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	binaryPath := buildPanoptic(t)
@@ -311,7 +311,7 @@ actions:
 
 func TestE2E_ErrorHandling(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping e2e tests in short mode")
+		t.Skip("Skipping e2e tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	binaryPath := buildPanoptic(t)
@@ -423,7 +423,7 @@ actions:
 
 func TestE2E_PerformanceMetrics(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping e2e tests in short mode")
+		t.Skip("Skipping e2e tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	binaryPath := buildPanoptic(t)

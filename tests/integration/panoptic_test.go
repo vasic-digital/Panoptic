@@ -19,7 +19,7 @@ import (
 
 func TestPanopticCLI_Integration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping integration tests in short mode")
+		t.Skip("Skipping integration tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	// Build the application
@@ -110,7 +110,7 @@ actions:
 
 func TestPanoptic_WebAppIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping integration tests in short mode")
+		t.Skip("Skipping integration tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	binaryPath := buildPanoptic(t)
@@ -197,7 +197,7 @@ actions:
 
 func TestPanoptic_DesktopAppIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping integration tests in short mode")
+		t.Skip("Skipping integration tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	binaryPath := buildPanoptic(t)
@@ -264,7 +264,7 @@ actions:
 
 func TestPanoptic_MobileAppIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping integration tests in short mode")
+		t.Skip("Skipping integration tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	binaryPath := buildPanoptic(t)
@@ -327,7 +327,7 @@ actions:
 
 func TestPanoptic_ReportGeneration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping integration tests in short mode")
+		t.Skip("Skipping integration tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	binaryPath := buildPanoptic(t)
@@ -382,7 +382,7 @@ actions:
 
 func TestPanoptic_ConfigValidation(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping integration tests in short mode")
+		t.Skip("Skipping integration tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	binaryPath := buildPanoptic(t)

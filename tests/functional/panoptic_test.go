@@ -130,7 +130,7 @@ func atoi(s string) int {
 // TestPanopticFunctional tests the complete workflow with real applications
 func TestPanopticFunctional_WebFormSubmission(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping functional tests in short mode")
+		t.Skip("Skipping functional tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	// Start test server
@@ -209,7 +209,7 @@ settings:
 		if strings.Contains(errorStr, "browser") || 
 		   strings.Contains(errorStr, "chrome") || 
 		   strings.Contains(errorStr, "chromium") {
-			t.Skip("Browser not available - skipping functional test")
+			t.Skip("Browser not available - skipping functional test")  // SKIP-OK: #legacy-untriaged
 		}
 	}
 
@@ -246,7 +246,7 @@ settings:
 // TestPanopticFunctional_MultiAppWorkflow tests multiple applications in sequence
 func TestPanopticFunctional_MultiAppWorkflow(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping functional tests in short mode")
+		t.Skip("Skipping functional tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	// Start test server
@@ -325,7 +325,7 @@ settings:
 // TestPanopticFunctional_RealWorldScenario tests a realistic user journey
 func TestPanopticFunctional_RealWorldScenario(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping functional tests in short mode")
+		t.Skip("Skipping functional tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	// Start enhanced test server
@@ -477,7 +477,7 @@ settings:
 // TestPanopticFunctional_ErrorRecovery tests error handling and recovery
 func TestPanopticFunctional_ErrorRecovery(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping functional tests in short mode")
+		t.Skip("Skipping functional tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	// Test with invalid URL to trigger errors
@@ -556,7 +556,7 @@ settings:
 // TestPanopticFunctional_PerformanceValidation tests that performance metrics are collected
 func TestPanopticFunctional_PerformanceValidation(t *testing.T) {
 	if testing.Short() {
-		t.Skip("Skipping functional tests in short mode")
+		t.Skip("Skipping functional tests in short mode")  // SKIP-OK: #short-mode
 	}
 
 	testServer := NewTestServer()
