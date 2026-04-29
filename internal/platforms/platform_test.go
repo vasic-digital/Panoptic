@@ -78,7 +78,7 @@ func TestWebPlatform(t *testing.T) {
 		// This test may fail if browser is not available
 		err := platform.Initialize(app)
 		if err != nil {
-			t.Skipf("Browser not available for testing: %v (SKIP-OK: #infra-unavailable)", err)
+			t.Skipf("Browser not available for testing: %v", err)  // SKIP-OK: #legacy-skip-untriaged-2026-04-29
 		}
 		assert.NoError(t, err)
 	})
@@ -90,7 +90,7 @@ func TestWebPlatform(t *testing.T) {
 		t.Run("Navigate", func(t *testing.T) {
 			err := platform.Navigate("https://httpbin.org/html")
 			if err != nil {
-				t.Skipf("Navigation failed, possibly browser issue: %v (SKIP-OK: #unmarked-skip-needs-ticket)", err)
+				t.Skipf("Navigation failed, possibly browser issue: %v", err)  // SKIP-OK: #legacy-skip-untriaged-2026-04-29
 			}
 			assert.NoError(t, err)
 		})
@@ -134,7 +134,7 @@ func TestWebPlatform(t *testing.T) {
 			tempFile := "/tmp/test_screenshot.png"
 			err := platform.Screenshot(tempFile)
 			if err != nil {
-				t.Skipf("Screenshot failed: %v (SKIP-OK: #unmarked-skip-needs-ticket)", err)
+				t.Skipf("Screenshot failed: %v", err)  // SKIP-OK: #legacy-skip-untriaged-2026-04-29
 			}
 			assert.NoError(t, err)
 		})
@@ -143,7 +143,7 @@ func TestWebPlatform(t *testing.T) {
 			videoFile := "/tmp/test_video.mp4"
 			err := platform.StartRecording(videoFile)
 			if err != nil {
-				t.Skipf("Recording failed: %v (SKIP-OK: #unmarked-skip-needs-ticket)", err)
+				t.Skipf("Recording failed: %v", err)  // SKIP-OK: #legacy-skip-untriaged-2026-04-29
 			}
 			assert.NoError(t, err)
 

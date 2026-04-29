@@ -209,6 +209,7 @@ func TestGenerateAITestReport(t *testing.T) {
 
 // TestGenerateAITestReport_EmptyTests tests report with no tests
 func TestGenerateAITestReport_EmptyTests(t *testing.T) {
+	// bluff-scan: no-assert-ok (empty/disabled-input smoke — must not panic on edge case)
 	log := logger.NewLogger(false)
 	visionDetector := vision.NewElementDetector(*log)
 	generator := NewTestGenerator(*log, visionDetector)

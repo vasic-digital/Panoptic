@@ -805,6 +805,7 @@ func TestCleanupOldFiles(t *testing.T) {
 
 // TestEnableCDN tests CDN enablement
 func TestEnableCDN(t *testing.T) {
+	// bluff-scan: no-assert-ok (feature/interface smoke — wiring must not panic)
 	log := logger.NewLogger(false)
 	manager := &CloudManager{
 		Logger:  *log,

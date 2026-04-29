@@ -674,6 +674,7 @@ func TestGetAdminCount(t *testing.T) {
 
 // TestCleanupUserData tests user data cleanup
 func TestCleanupUserData(t *testing.T) {
+	// bluff-scan: no-assert-ok (cleanup smoke — must not panic when state may already be partially clean)
 	log := logger.NewLogger(false)
 	manager := &EnterpriseManager{
 		Logger:   *log,

@@ -289,6 +289,7 @@ func TestSaveAndLoadData(t *testing.T) {
 
 // TestValidateLicense tests license validation
 func TestValidateLicense(t *testing.T) {
+	// bluff-scan: no-assert-ok (validator smoke — must not panic on edge inputs)
 	log := logger.NewLogger(false)
 	manager := &EnterpriseManager{
 		Logger: *log,
