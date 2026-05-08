@@ -8,6 +8,22 @@ This module inherits HelixAgent's universal Definition of Done — see the root
 task is done without pasted output from a real run of the real system in the
 same session as the change.** Coverage and green suites are not evidence.
 
+## Lava Constitution Inheritance (Anti-Bluff Pact)
+
+When consumed by Lava (`vasic-digital/Lava`), this submodule inherits:
+
+### Clause 6.J — Anti-Bluff Functional Reality Mandate
+Every test, Challenge Test, and CI gate MUST confirm the feature actually works for an end user, end-to-end, on the gating matrix. CI green is necessary, NEVER sufficient. Tests passing against deliberately-broken production code are bluffs and must be removed.
+
+### Clause 6.L — Operator's Standing Order
+The operator has invoked this mandate 13+ times. The repetition is the forensic record. Execution of tests and Challenges MUST guarantee the quality, completion and full usability by end users of the product.
+
+### Clause 6.Q — Compose Layout Antipattern Guard
+Forbids nesting vertically-scrolling lazy layouts inside parents giving unbounded vertical space. Per-feature structural tests + UI Challenge Tests on the gating matrix are the load-bearing acceptance gates.
+
+### Inheritance
+Applies recursively. Submodule constitutions MAY add stricter rules but MUST NOT relax these. Authoritative text in parent Lava `/CLAUDE.md`. Submodule rules MAY add stricter clauses but MUST NOT relax any.
+
 ### Acceptance demo for this module
 
 ```bash

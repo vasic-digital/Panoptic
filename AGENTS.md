@@ -1,5 +1,9 @@
 # AGENTS.md
 
+## Lava Constitution Inheritance (Anti-Bluff Pact)
+
+When consumed by Lava (`vasic-digital/Lava`), this submodule inherits Constitutional clauses 6.J (Anti-Bluff Functional Reality Mandate), 6.L (Operator's Standing Order), and 6.Q (Compose Layout Antipattern Guard) verbatim from the parent `/CLAUDE.md`. CI green is necessary, NEVER sufficient. Tests must guarantee the product works for end users — anything else is theatre. Authoritative text in parent Lava `/CLAUDE.md`. Submodule rules MAY add stricter clauses but MUST NOT relax any.
+
 ## MANDATORY: No CI/CD Pipelines
 
 **NO GitHub Actions, GitLab CI/CD, or any automated pipeline may exist in this repository!**

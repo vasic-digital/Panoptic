@@ -4,6 +4,10 @@
 > rule set. When a rule here conflicts with `CLAUDE.md`, `AGENTS.md`,
 > or any guide, the Constitution wins.
 
+## Lava Constitution Inheritance (Anti-Bluff Pact)
+
+When consumed by Lava (`vasic-digital/Lava`), this submodule inherits Constitutional clauses 6.J (Anti-Bluff Functional Reality Mandate), 6.L (Operator's Standing Order), and 6.Q (Compose Layout Antipattern Guard) verbatim from the parent `/CLAUDE.md`. CI green is necessary, NEVER sufficient. Tests must guarantee the product works for end users — anything else is theatre. Submodule rules MAY add stricter clauses but MUST NOT relax any.
+
 ## Mission
 
 See README.md.
