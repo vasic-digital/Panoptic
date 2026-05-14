@@ -164,35 +164,36 @@ actions:
 	assert.True(t, duration < 45*time.Second, "Web test took too long: %v", duration)
 
 	if err != nil {
-		// May fail due to browser, check for expected failure patterns
-		assert.True(t, 
+		// Browser failure path — keep the existing wrong-error-shape guard.
+		assert.True(t,
 			strings.Contains(outputStr, "Browser not available") ||
-			strings.Contains(outputStr, "failed") ||
-			strings.Contains(outputStr, "connection"),
+				strings.Contains(outputStr, "failed") ||
+				strings.Contains(outputStr, "connection"),
 			"Unexpected error in web test: %s", outputStr)
-	} else {
-		// Verify screenshots were created
-		screenshotsDir := filepath.Join(tempDir, "screenshots")
-		files, err := os.ReadDir(screenshotsDir)
-		assert.NoError(t, err)
-		assert.True(t, len(files) >= 0, "Expected at least some files or directories")
+		return
+	}
+	// Anti-bluff (CONST-035 / §11.9): the original success branch ended
+	// with `if hasScreenshots { t.Logf(...) } else { t.Logf(...) }` —
+	// passing whether ANY screenshot existed or not. The whole point of
+	// the success branch (Panoptic ran, exited 0, claimed to produce
+	// screenshots) is that screenshots MUST exist. If the test runner
+	// succeeded but the screenshots directory is empty / has no .png
+	// files, that is a real Panoptic regression — not "browser
+	// unavailable" (the browser-unavailable case lives in the err != nil
+	// branch above). Pin the contract.
+	screenshotsDir := filepath.Join(tempDir, "screenshots")
+	files, readErr := os.ReadDir(screenshotsDir)
+	require.NoError(t, readErr, "screenshots dir must be readable when Panoptic exited cleanly")
 
-		// Check for screenshot files
-		hasScreenshots := false
-		for _, file := range files {
-			if !file.IsDir() && strings.HasSuffix(file.Name(), ".png") {
-				hasScreenshots = true
-				break
-			}
-		}
-		
-		// Screenshots may or may not be created depending on browser availability
-		if hasScreenshots {
-			t.Logf("Screenshots found in output directory")
-		} else {
-			t.Logf("No screenshots found (expected if browser unavailable)")
+	hasScreenshots := false
+	for _, file := range files {
+		if !file.IsDir() && strings.HasSuffix(file.Name(), ".png") {
+			hasScreenshots = true
+			break
 		}
 	}
+	assert.True(t, hasScreenshots,
+		"Panoptic exited cleanly so screenshots/*.png MUST exist; found files=%d, none with .png suffix — Panoptic regression", len(files))
 }
 
 func TestPanoptic_DesktopAppIntegration(t *testing.T) {
