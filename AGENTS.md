@@ -449,4 +449,28 @@ Both MUST be wired into the project's CI / `run_all_challenges.sh`.
 **Full background:** `docs/HOST_POWER_MANAGEMENT.md` and `CONSTITUTION.md` (CONST-033).
 
 <!-- END host-power-management addendum (CONST-033) -->
+<!-- BEGIN submodule-decoupling-and-reusability (parent-mirror) -->
 
+## Submodule Decoupling & Reusability — MANDATORY for ALL AI Agents
+
+**Applies to ALL CLI agents (Codex, Cursor, Gemini CLI, Copilot CLI,
+Claude Code, etc.) working in this repository.**
+
+This repository is **shared infrastructure** consumed by multiple
+independent consumer projects. The value of this repository depends
+on staying fully decoupled and reusable.
+
+**Hard rules:**
+
+- DO NOT hardcode any specific consumer project's name, platform
+  list, paths, version strings, or release-naming conventions.
+- DO NOT import / reference any consumer-project namespace.
+- DO NOT embed consumer-project-specific governance, branding, or
+  rule numbering in `CONSTITUTION.md` / `CLAUDE.md` / `AGENTS.md`.
+- DO assume N ≥ 2 unrelated consumer projects exist.
+
+Cross-project rules MUST be phrased generically ("every consuming
+project's full platform matrix"), never with a specific consumer's
+matrix hardcoded.
+
+<!-- END submodule-decoupling-and-reusability (parent-mirror) -->
