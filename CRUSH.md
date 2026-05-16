@@ -89,7 +89,7 @@ golangci-lint run
 ## Project Structure
 
 ```
-Panoptic/
+panoptic/
 ├── internal/                    # Core application modules
 │   ├── config/                 # Configuration management
 │   │   ├── config.go           # Config struct and loading
