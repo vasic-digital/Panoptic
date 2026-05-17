@@ -284,35 +284,24 @@ func (cm *CloudManager) ExecuteDistributedTest(ctx context.Context, testConfig i
 	return results, nil
 }
 
-// executeTestOnNode executes test on a specific distributed node
+// executeTestOnNode would execute the test on a specific distributed
+// node via its HTTP/gRPC endpoint. Wire-up not implemented; returns
+// explicit ErrDistributedNotWired sentinel so callers see the gap
+// rather than receive fabricated success.
+//
+// Previously this function returned a hardcoded Success:true
+// CloudTestResult without contacting the node at all — any test of
+// the `distributed_test` action type PASSed while nothing ran on
+// remote infrastructure (§11.4 PASS-bluff).
 func (cm *CloudManager) executeTestOnNode(ctx context.Context, testConfig interface{}, node DistributedNode, testID string) (*CloudTestResult, error) {
-	startTime := time.Now()
-
-	cm.Logger.Infof("Executing test on node %s (%s)", node.Name, node.Location)
-
-	// Simulate distributed test execution
-	// In real implementation, this would make API call to node endpoint
-	result := &CloudTestResult{
-		TestID:    testID,
-		NodeID:    node.ID,
-		NodeName:  node.Name,
-		Location:  node.Location,
-		StartTime: startTime,
-		EndTime:   time.Now(),
-		Success:   true,
-		Artifacts: []CloudArtifact{},
-		Metrics: map[string]interface{}{
-			"node_capacity":  node.Capacity,
-			"priority":       node.Priority,
-			"execution_time": time.Since(startTime).Seconds(),
-		},
-		Timestamp: startTime,
-	}
-
-	result.Duration = result.EndTime.Sub(result.StartTime)
-
-	return result, nil
+	cm.Logger.Warnf("[§11.4 / CONST-035] executeTestOnNode called for node %s (%s) test %s but distributed-node dispatch is not wired; returning ErrDistributedNotWired",
+		node.Name, node.Location, testID)
+	return nil, ErrDistributedNotWired
 }
+
+// ErrDistributedNotWired is returned by executeTestOnNode until the
+// real HTTP/gRPC call to the node's Endpoint is implemented.
+var ErrDistributedNotWired = fmt.Errorf("distributed test dispatch not wired: real execution requires an HTTP/gRPC call to node.Endpoint; the previous fabricated-success path was a §11.4 PASS-bluff and is now removed")
 
 // storeTestResult stores test result in cloud storage
 func (cm *CloudManager) storeTestResult(ctx context.Context, result *CloudTestResult, remotePath string) error {
@@ -423,11 +412,16 @@ func (cm *CloudManager) EnableCDN(ctx context.Context) error {
 		return fmt.Errorf("CDN is not enabled or configured")
 	}
 
-	cm.Logger.Infof("Enabling CDN with endpoint: %s", cm.Config.CDNEndpoint)
-
-	// In real implementation, this would configure CDN settings
-	return nil
+	cm.Logger.Warnf("[§11.4 / CONST-035] EnableCDN called with endpoint %s but provider-specific CDN configuration (CloudFront / Cloud CDN / Azure CDN) is not wired; returning ErrCDNNotWired",
+		cm.Config.CDNEndpoint)
+	return ErrCDNNotWired
 }
+
+// ErrCDNNotWired is returned by EnableCDN until provider-specific
+// CDN configuration is implemented. Previously this returned nil
+// silently, allowing the cloud_analytics action to "succeed" while
+// no CDN was actually configured — §11.4 PASS-bluff.
+var ErrCDNNotWired = fmt.Errorf("CDN configuration not wired: real CDN enablement requires provider-specific SDK calls (AWS CloudFront / GCP Cloud CDN / Azure CDN); the previous no-op-return-nil path was a §11.4 PASS-bluff and is now removed")
 
 // GenerateCloudReport generates comprehensive cloud analytics report
 func (cm *CloudManager) GenerateCloudReport(ctx context.Context) (*CloudReport, error) {
@@ -761,173 +755,41 @@ func (m *CloudManager) Upload(filePath string) error {
 	}
 }
 
-// uploadToAWS uploads file to AWS S3
+// ErrCloudSDKNotWired is the sentinel error returned by uploadToAWS /
+// uploadToGCP / uploadToAzure until real SDK dispatch is implemented.
+// Previously these functions emitted a `time.Sleep`, logged
+// "Successfully uploaded", and returned nil — fabricating cloud-upload
+// success while transferring zero bytes. Any user configuring
+// `cloud.provider: aws|gcp|azure` got a green checkmark for a feature
+// that didn't exist. Returning this explicit error closes the §11.4
+// PASS-bluff at the assertion layer: every caller now sees the gap
+// instead of trusting a fake success.
+var ErrCloudSDKNotWired = fmt.Errorf("cloud SDK not wired: real upload requires implementing the provider SDK (AWS SDK Go v2 s3.PutObject, GCP cloud.google.com/go/storage, or Azure azblob.UploadFile); the previous simulated-success path was a §11.4 PASS-bluff and is now removed")
+
+// uploadToAWS would upload to AWS S3 via the AWS SDK. SDK dispatch
+// is not yet implemented; callers receive ErrCloudSDKNotWired so the
+// missing capability surfaces loudly instead of silently succeeding
+// with zero bytes transferred.
 func (m *CloudManager) uploadToAWS(localPath, cloudPath string, fileInfo os.FileInfo) error {
-	m.Logger.Infof("Uploading to AWS S3: %s -> %s", localPath, cloudPath)
-
-	// In a real implementation, this would use the AWS SDK
-	// For now, we simulate the upload with detailed logging
-
-	// Simulate upload progress
-	m.Logger.Debugf("Connecting to S3 bucket: %s", m.Config.Bucket)
-	m.Logger.Debugf("Uploading file of size: %d bytes", fileInfo.Size())
-	m.Logger.Debugf("Upload path: %s", cloudPath)
-
-	// Simulate upload delay for large files
-	delay := time.Duration(fileInfo.Size() / 1000000) // 1ms per MB
-	if delay > 0 {
-		time.Sleep(delay)
-	}
-
-	// Simulate successful upload
-	m.Logger.Infof("Successfully uploaded to S3: s3://%s/%s", m.Config.Bucket, cloudPath)
-
-	// Store upload metadata for later reference
-	uploadMetadata := map[string]interface{}{
-		"provider":     "aws",
-		"bucket":       m.Config.Bucket,
-		"cloud_path":   cloudPath,
-		"local_path":   localPath,
-		"file_size":    fileInfo.Size(),
-		"upload_time":  time.Now().Format(time.RFC3339),
-		"content_type": "application/octet-stream",
-		"etag":         fmt.Sprintf("\"%x\"", time.Now().UnixNano()),
-	}
-
-	// Add to test results for tracking
-	result := CloudTestResult{
-		TestID:    fmt.Sprintf("upload_%d", time.Now().UnixNano()),
-		NodeID:    "local",
-		NodeName:  "Local Upload",
-		Location:  "local",
-		StartTime: time.Now(),
-		EndTime:   time.Now(),
-		Duration:  time.Since(time.Now()),
-		Success:   true,
-		Artifacts: []CloudArtifact{
-			{
-				Name:        filepath.Base(cloudPath),
-				Type:        "video",
-				Path:        cloudPath,
-				Size:        fileInfo.Size(),
-				ContentType: uploadMetadata["content_type"].(string),
-			},
-		},
-		Metrics:   uploadMetadata,
-		Timestamp: time.Now(),
-	}
-	m.TestResults = append(m.TestResults, result)
-
-	return nil
+	m.Logger.Warnf("[§11.4 / CONST-035] uploadToAWS called for %s → s3://%s/%s (size=%d) but AWS SDK is not wired; returning ErrCloudSDKNotWired",
+		localPath, m.Config.Bucket, cloudPath, fileInfo.Size())
+	return ErrCloudSDKNotWired
 }
 
-// uploadToGCP uploads file to Google Cloud Storage
+// uploadToGCP would upload to Google Cloud Storage. SDK dispatch not
+// yet implemented; returns ErrCloudSDKNotWired.
 func (m *CloudManager) uploadToGCP(localPath, cloudPath string, fileInfo os.FileInfo) error {
-	m.Logger.Infof("Uploading to GCP Storage: %s -> %s", localPath, cloudPath)
-
-	// Simulate GCP upload
-	m.Logger.Debugf("Connecting to GCP bucket: %s", m.Config.Bucket)
-	m.Logger.Debugf("Uploading file of size: %d bytes", fileInfo.Size())
-
-	// Simulate upload delay
-	delay := time.Duration(fileInfo.Size() / 1000000)
-	if delay > 0 {
-		time.Sleep(delay)
-	}
-
-	m.Logger.Infof("Successfully uploaded to GCP: gs://%s/%s", m.Config.Bucket, cloudPath)
-
-	uploadMetadata := map[string]interface{}{
-		"provider":     "gcp",
-		"bucket":       m.Config.Bucket,
-		"cloud_path":   cloudPath,
-		"local_path":   localPath,
-		"file_size":    fileInfo.Size(),
-		"upload_time":  time.Now().Format(time.RFC3339),
-		"content_type": "application/octet-stream",
-		"generation":   fmt.Sprintf("%d", time.Now().UnixNano()),
-	}
-
-	// Add to test results for tracking
-	result := CloudTestResult{
-		TestID:    fmt.Sprintf("upload_%d", time.Now().UnixNano()),
-		NodeID:    "local",
-		NodeName:  "Local Upload",
-		Location:  "local",
-		StartTime: time.Now(),
-		EndTime:   time.Now(),
-		Duration:  time.Since(time.Now()),
-		Success:   true,
-		Artifacts: []CloudArtifact{
-			{
-				Name:        filepath.Base(cloudPath),
-				Type:        "video",
-				Path:        cloudPath,
-				Size:        fileInfo.Size(),
-				ContentType: uploadMetadata["content_type"].(string),
-			},
-		},
-		Metrics:   uploadMetadata,
-		Timestamp: time.Now(),
-	}
-	m.TestResults = append(m.TestResults, result)
-
-	return nil
+	m.Logger.Warnf("[§11.4 / CONST-035] uploadToGCP called for %s → gs://%s/%s (size=%d) but GCP SDK is not wired; returning ErrCloudSDKNotWired",
+		localPath, m.Config.Bucket, cloudPath, fileInfo.Size())
+	return ErrCloudSDKNotWired
 }
 
-// uploadToAzure uploads file to Azure Blob Storage
+// uploadToAzure would upload to Azure Blob Storage. SDK dispatch not
+// yet implemented; returns ErrCloudSDKNotWired.
 func (m *CloudManager) uploadToAzure(localPath, cloudPath string, fileInfo os.FileInfo) error {
-	m.Logger.Infof("Uploading to Azure Blob: %s -> %s", localPath, cloudPath)
-
-	// Simulate Azure upload
-	m.Logger.Debugf("Connecting to Azure container: %s", m.Config.Bucket)
-	m.Logger.Debugf("Uploading file of size: %d bytes", fileInfo.Size())
-
-	// Simulate upload delay
-	delay := time.Duration(fileInfo.Size() / 1000000)
-	if delay > 0 {
-		time.Sleep(delay)
-	}
-
-	m.Logger.Infof("Successfully uploaded to Azure: https://%s.blob.core.windows.net/%s/%s",
-		m.Config.Bucket, m.Config.Bucket, cloudPath)
-
-	uploadMetadata := map[string]interface{}{
-		"provider":     "azure",
-		"container":    m.Config.Bucket,
-		"cloud_path":   cloudPath,
-		"local_path":   localPath,
-		"file_size":    fileInfo.Size(),
-		"upload_time":  time.Now().Format(time.RFC3339),
-		"content_type": "application/octet-stream",
-		"blob_id":      fmt.Sprintf("%d", time.Now().UnixNano()),
-	}
-
-	// Add to test results for tracking
-	result := CloudTestResult{
-		TestID:    fmt.Sprintf("upload_%d", time.Now().UnixNano()),
-		NodeID:    "local",
-		NodeName:  "Local Upload",
-		Location:  "local",
-		StartTime: time.Now(),
-		EndTime:   time.Now(),
-		Duration:  time.Since(time.Now()),
-		Success:   true,
-		Artifacts: []CloudArtifact{
-			{
-				Name:        filepath.Base(cloudPath),
-				Type:        "video",
-				Path:        cloudPath,
-				Size:        fileInfo.Size(),
-				ContentType: uploadMetadata["content_type"].(string),
-			},
-		},
-		Metrics:   uploadMetadata,
-		Timestamp: time.Now(),
-	}
-	m.TestResults = append(m.TestResults, result)
-
-	return nil
+	m.Logger.Warnf("[§11.4 / CONST-035] uploadToAzure called for %s → https://%s.blob.core.windows.net/%s/%s (size=%d) but Azure SDK is not wired; returning ErrCloudSDKNotWired",
+		localPath, m.Config.Bucket, m.Config.Bucket, cloudPath, fileInfo.Size())
+	return ErrCloudSDKNotWired
 }
 
 // uploadToLocal uploads file to local storage (simulating cloud)

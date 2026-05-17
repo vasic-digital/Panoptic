@@ -52,13 +52,17 @@ func (d *DesktopPlatform) Navigate(url string) error {
 	if url == "" {
 		return fmt.Errorf("url cannot be empty")
 	}
-	
-	// For desktop apps, navigate might mean opening a specific view or menu
-	// This is a placeholder implementation
+
+	// Desktop "navigation" requires platform-specific accessibility-API
+	// dispatch (AT-SPI/X11 on Linux, AX on macOS, UIA on Windows).
+	// None of those are wired here. The previous implementation merely
+	// appended the URL to a metrics slice and returned nil — any test
+	// of desktop navigation PASSed without sending any signal to the
+	// app under test. §11.4 stub-interface PASS-bluff.
 	if navigateActions, ok := d.metrics["navigate_actions"].([]string); ok {
 		d.metrics["navigate_actions"] = append(navigateActions, url)
 	}
-	return nil
+	return fmt.Errorf("desktop Navigate: platform-native accessibility-API dispatch is not wired (target=%q); honest failure replaces the prior silent no-op §11.4 bluff", url)
 }
 
 func (d *DesktopPlatform) Click(selector string) error {
@@ -168,10 +172,13 @@ func (d *DesktopPlatform) Fill(selector, value string) error {
 		}
 		d.metrics["fill_actions"] = append(fillActions, newAction)
 	}
-	
-	// Platform-specific form filling implementation
-	time.Sleep(500 * time.Millisecond) // Simulate typing
-	return nil
+
+	// Desktop Fill needs platform-native keystroke injection
+	// (xdotool type on Linux, osascript on macOS, SendKeys on
+	// Windows). None wired here. The previous time.Sleep(500ms)
+	// simulated typing without actually entering any characters
+	// — §11.4 PASS-bluff.
+	return fmt.Errorf("desktop Fill: keystroke injection is not wired (target=%q value-len=%d); honest failure replaces the prior time.Sleep simulation", selector, len(value))
 }
 
 func (d *DesktopPlatform) Submit(selector string) error {
@@ -179,10 +186,12 @@ func (d *DesktopPlatform) Submit(selector string) error {
 	if submitActions, ok := d.metrics["submit_actions"].([]string); ok {
 		d.metrics["submit_actions"] = append(submitActions, selector)
 	}
-	
-	// Platform-specific form submission
-	time.Sleep(1 * time.Second) // Simulate submission
-	return nil
+
+	// Desktop Submit needs Enter-key injection or platform-native
+	// form-submission dispatch. None wired here. The previous
+	// time.Sleep(1s) simulated submission without acting on the
+	// form — §11.4 PASS-bluff.
+	return fmt.Errorf("desktop Submit: form-submission dispatch is not wired (target=%q); honest failure replaces the prior time.Sleep simulation", selector)
 }
 
 func (d *DesktopPlatform) Wait(duration int) error {

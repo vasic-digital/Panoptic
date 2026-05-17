@@ -200,22 +200,29 @@ type AIRecommendation struct {
 	Effort      string   `json:"effort"`
 }
 
-// executeOriginalTest executes the original test configuration
+// executeOriginalTest performs ONLY static action-config validation;
+// it does NOT execute the real test (the real executor integration is
+// not wired). Returns:
+//   - result: a map flagging executor_wired=false and listing
+//     actions_validated count (NEVER a fabricated success_rate)
+//   - errors: validation errors detected from action-config inspection
+//     (missing selector for click, missing URL for navigate, etc.)
+//
+// Previously this function returned a hardcoded `success_rate: 0.85`
+// after pretending to execute every action — a textbook §11.4
+// PASS-bluff. Any test that asserted on `success_rate` PASSed
+// against a fabricated 0.85 while nothing was tested. Now: the
+// returned map has executor_wired=false so callers see the gap
+// directly, and success_rate is omitted (any caller indexing it
+// receives the zero value, fails its threshold check, and surfaces
+// the gap loudly).
 func (ait *AIEnhancedTester) executeOriginalTest(testConfig config.Config, platform platforms.Platform) (interface{}, []DetectedError) {
-	// This would integrate with the existing executor
-	// For now, simulate execution and collect results
-	ait.Logger.Infof("Executing %d original test actions", len(testConfig.Actions))
-	
+	ait.Logger.Warnf("[§11.4 / CONST-035] executeOriginalTest performing config-only validation on %d actions; real executor.Execute() is not wired — returned result.success_rate is NOT a real measurement",
+		len(testConfig.Actions))
+
 	var errors []DetectedError
-	
-	// Simulate executing each action and collecting errors
 	for _, action := range testConfig.Actions {
-		ait.Logger.Debugf("Executing action: %s", action.Name)
-		
-		// In real implementation, this would call the actual executor
-		// For now, we simulate and collect hypothetical errors
-		
-		// Add some example error detection based on action type
+		ait.Logger.Debugf("Validating action config: %s", action.Name)
 		if action.Type == "click" && action.Selector == "" {
 			errors = append(errors, DetectedError{
 				Name:        "MissingSelector",
@@ -230,7 +237,6 @@ func (ait *AIEnhancedTester) executeOriginalTest(testConfig config.Config, platf
 				Tags:        []string{"click", "selector", "missing"},
 			})
 		}
-		
 		if action.Type == "navigate" && action.Value == "" {
 			errors = append(errors, DetectedError{
 				Name:        "MissingURL",
@@ -245,20 +251,15 @@ func (ait *AIEnhancedTester) executeOriginalTest(testConfig config.Config, platf
 				Tags:        []string{"navigate", "url", "missing"},
 			})
 		}
-		
-		// Wait between actions
-		if action.Type == "wait" {
-			time.Sleep(time.Duration(action.WaitTime) * time.Second)
-		}
 	}
-	
-	// Return simulated result
+
 	result := map[string]interface{}{
-		"actions_executed": len(testConfig.Actions),
-		"success_rate":    0.85,
-		"execution_time":   time.Now(),
+		"executor_wired":    false,
+		"actions_validated": len(testConfig.Actions),
+		"validation_only":   true,
+		"note":              "real executor.Execute() is not wired; this is config-only validation — no success_rate emitted to avoid §11.4 PASS-bluff",
+		"timestamp":         time.Now(),
 	}
-	
 	return result, errors
 }
 
