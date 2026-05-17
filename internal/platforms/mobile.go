@@ -11,6 +11,29 @@ import (
 	"panoptic/internal/config"
 )
 
+// ErrMobileDeviceInteractionNotWired is returned by mobile-platform action
+// helpers (createMobileUIPlaceholder, createVideoPlaceholder) when the real
+// device-interaction pipeline (Android: ADB / uiautomator / screenrecord;
+// iOS: xcrun simctl / accessibility inspector / XCTest) has not been wired
+// for the target action, OR the wired pipeline failed and the previous
+// fallback would have written a description file in lieu of performing the
+// action.
+//
+// Round-29 §11.4 anti-bluff audit (2026-05-17): the previous implementation
+// of these helpers wrote a *.log text file describing what the action
+// "would have done" and returned (nil), so a test that invoked
+// MobilePlatform.Click / MobilePlatform.StartRecording could PASS while
+// no tap, no fill, no screen capture had happened. CRITICAL CONTRACT-bluff
+// under CONST-035 / Article XI §11.9: the platform advertised a Click /
+// StartRecording capability, the test scored PASS, the device received no
+// interaction. The helpers now refuse to fabricate and surface this
+// sentinel instead. Callers MUST treat this as a real failure (not silently
+// swallow it) and either (a) wire the real ADB / uiautomator / xcrun
+// pipeline before invoking the action, OR (b) skip the action with an
+// explicit "device-interaction not wired" annotation captured in the
+// test record (so the test scoreboard reflects reality).
+var ErrMobileDeviceInteractionNotWired = fmt.Errorf("panoptic mobile: device-interaction actions (screencap, adb input tap, screenrecord, xcrun simctl io recordVideo, etc.) have not been wired — the previous implementation wrote a description file to disk and returned success without performing the actual UI action (§11.4 CONTRACT-bluff under CONST-035 / Article XI §11.9). Wire pkg/devices/adb (or equivalent) before invoking mobile UI actions; or use the real-device-paired challenge runner")
+
 type MobilePlatform struct {
 	platform     string // ios, android
 	device       string
@@ -29,7 +52,14 @@ func NewMobilePlatform() *MobilePlatform {
 			"submit_actions":    []string{},
 			"navigate_actions":  []string{},
 			"videos_taken":     []string{},
-			"mobile_ui_placeholders": []string{},
+			// Sentinel-gap tracking slots (round-29 §11.4 anti-bluff
+			// audit, 2026-05-17). These replace the previous
+			// "mobile_ui_placeholders" slot which tracked fabricated
+			// description files. Now they capture honest records of
+			// unwired UI / video actions so the run report can surface
+			// the gap rather than fake success.
+			"mobile_ui_not_wired":    []string{},
+			"mobile_video_not_wired": []string{},
 			"start_time":        time.Now(),
 		},
 	}
@@ -167,41 +197,33 @@ func (m *MobilePlatform) Click(selector string) error {
 	return nil
 }
 
+// createMobileUIPlaceholder previously wrote a description *.log file to
+// the working directory and returned (nil), letting a test invoke
+// MobilePlatform.Click / Fill / Submit and score PASS while the device
+// received zero interaction. Per the round-29 §11.4 anti-bluff audit
+// (2026-05-17) the helper now returns ErrMobileDeviceInteractionNotWired
+// wrapped with the action / selector / reason context, and records the
+// surfaced gap in `metrics["mobile_ui_not_wired"]` so the run report
+// reflects reality. NO file is written; NO success is fabricated.
+//
+// Callers (MobilePlatform.Click and any future action dispatcher) MUST
+// propagate this error to the test runner — silently swallowing it would
+// reintroduce the original CONTRACT-bluff.
+//
+// Constitutional anchors: CONST-035 (anti-bluff), CONST-050(A)
+// (no-fakes-beyond-unit-tests), Article XI §11.9 (forensic anchor).
 func (m *MobilePlatform) createMobileUIPlaceholder(action, selector, reason string) error {
-	// Create placeholder file for mobile UI actions
-	placeholderFile := fmt.Sprintf("mobile_ui_action_%s_%d.log", action, time.Now().Unix())
-	placeholderContent := fmt.Sprintf(`# MOBILE UI ACTION PLACEHOLDER
-# Platform: %s
-# Device: %s
-# Emulator: %t
-# Action: %s
-# Selector: %s
-# Time: %s
-# Reason: %s
-
-# In a production implementation, this would perform actual mobile UI automation.
-# Current implementation requirements:
-# - Android: ADB, uiautomator, and UI dump analysis
-# - iOS: xcrun simctl, accessibility inspector, or iOS debugging tools
-# - Physical devices: Additional setup and permissions
-
-# To enable real mobile UI automation:
-# 1. Android: Enable USB debugging and install UI Automator
-# 2. iOS: Enable simulator automation in Xcode
-# 3. Install additional tools: Appium, XCTest, etc.
-# 4. Grant necessary permissions on devices
-`, m.platform, m.device, m.emulator, action, selector, time.Now().Format(time.RFC3339), reason)
-	
-	if err := os.WriteFile(placeholderFile, []byte(placeholderContent), 0600); err != nil {
-		return fmt.Errorf("failed to write mobile UI action placeholder: %w", err)
+	// Record the gap in metrics so the test report can surface it.
+	gapRecord := fmt.Sprintf("action=%s selector=%s reason=%q platform=%s device=%s emulator=%t at=%s",
+		action, selector, reason, m.platform, m.device, m.emulator, time.Now().Format(time.RFC3339))
+	if existing, ok := m.metrics["mobile_ui_not_wired"].([]string); ok {
+		m.metrics["mobile_ui_not_wired"] = append(existing, gapRecord)
+	} else {
+		m.metrics["mobile_ui_not_wired"] = []string{gapRecord}
 	}
-	
-	// Log placeholder creation
-	if uiActions, ok := m.metrics["mobile_ui_placeholders"].([]string); ok {
-		m.metrics["mobile_ui_placeholders"] = append(uiActions, placeholderFile)
-	}
-	
-	return nil
+
+	return fmt.Errorf("mobile UI action %q on selector %q (reason: %s): %w",
+		action, selector, reason, ErrMobileDeviceInteractionNotWired)
 }
 
 func (m *MobilePlatform) Fill(selector, value string) error {
@@ -452,41 +474,33 @@ func (m *MobilePlatform) checkDevice() error {
 	return nil
 }
 
+// createVideoPlaceholder previously wrote a text file to disk with a
+// "PANOPTIC VIDEO RECORDING PLACEHOLDER" header and returned (nil),
+// letting a test invoke MobilePlatform.StartRecording and score PASS
+// while no screen frames had been captured. A downstream §11.4.5 video-
+// quality analyzer reading the file would see a 0-frame "recording" and
+// either FAIL-bluff (Bug-24 pattern: 0-byte mp4 confused with real
+// recording) or PASS-bluff (assertion based on file presence rather
+// than frame count). Per the round-29 §11.4 anti-bluff audit
+// (2026-05-17) the helper now returns ErrMobileDeviceInteractionNotWired
+// wrapped with the filename / reason context, and records the gap in
+// `metrics["mobile_video_not_wired"]`. NO file is written.
+//
+// Callers (MobilePlatform.StartRecording and its fallback paths) MUST
+// propagate this error to the test runner.
+//
+// Constitutional anchors: CONST-035 (anti-bluff), CONST-050(A)
+// (no-fakes-beyond-unit-tests), Article XI §11.9 (forensic anchor),
+// §11.4.5 (video-quality analysis comprehensiveness).
 func (m *MobilePlatform) createVideoPlaceholder(filename, reason string) error {
-	file, err := os.Create(filename)
-	if err != nil {
-		return fmt.Errorf("failed to create video file: %w", err)
+	gapRecord := fmt.Sprintf("filename=%s reason=%q platform=%s device=%s emulator=%t at=%s",
+		filename, reason, m.platform, m.device, m.emulator, time.Now().Format(time.RFC3339))
+	if existing, ok := m.metrics["mobile_video_not_wired"].([]string); ok {
+		m.metrics["mobile_video_not_wired"] = append(existing, gapRecord)
+	} else {
+		m.metrics["mobile_video_not_wired"] = []string{gapRecord}
 	}
-	defer file.Close()
-	
-	// Write detailed placeholder header
-	placeholderContent := fmt.Sprintf(`# PANOPTIC VIDEO RECORDING PLACEHOLDER
-# Mobile Platform - %s
-# Device: %s
-# Emulator: %t
-# Recording started: %s
-# File: %s
-# Reason: %s
 
-# In a production implementation, this would be an actual video file.
-# Current implementation requirements:
-# - Android: ADB (Android Debug Bridge) installed and configured
-# - iOS Simulator: Xcode with iOS simulator tools
-# - iOS Physical Device: Additional developer tools and permissions
-
-# To enable real recording:
-# 1. Install Android SDK tools (for Android)
-# 2. Install Xcode (for iOS)
-# 3. Ensure device/emulator is running and connected
-# 4. Grant necessary recording permissions
-# 5. For Android: adb devices (should show connected devices)
-# 6. For iOS: xcrun simctl list devices (should show simulators)
-`, m.platform, m.device, m.emulator, time.Now().Format(time.RFC3339), filename, reason)
-	
-	if _, err := file.WriteString(placeholderContent); err != nil {
-		return fmt.Errorf("failed to write video header: %w", err)
-	}
-	
-	// Logging would go here: fmt.Printf("Mobile video placeholder created: %s (Reason: %s)", filename, reason)
-	return nil
+	return fmt.Errorf("mobile video recording for %q (reason: %s): %w",
+		filename, reason, ErrMobileDeviceInteractionNotWired)
 }

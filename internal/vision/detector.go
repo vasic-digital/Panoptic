@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"panoptic/internal/logger"
 )
@@ -403,9 +404,25 @@ func (ed *ElementDetector) getElementRectangle(elem ElementInfo) Rectangle {
 	}
 }
 
-// ContainsString checks if a string contains a substring (case-insensitive)
+// ContainsString reports whether `text` contains `search` as a
+// case-insensitive substring, mirroring the documented semantics.
+// An empty `search` argument returns false (treated as "no query")
+// rather than the strings.Contains-default of true — see the
+// WebPlatform.ContainsString sibling for the rationale.
+//
+// Round-29 §11.4 anti-bluff audit (2026-05-17): the previous body
+// `return len(text) > 0 && len(search) > 0` with the comment
+// "// Simplified for now" was a degenerate non-implementation that
+// returned true for ANY pair of non-empty strings (so FindElementByText
+// mass-matched every non-empty element regardless of the search query).
+// CONST-035 documentation-comment-bluff: the comment promised case-
+// insensitive substring matching, the body did not implement it. Now
+// the body is real case-insensitive substring matching.
 func (ed *ElementDetector) ContainsString(text, search string) bool {
-	return len(text) > 0 && len(search) > 0 // Simplified for now
+	if len(search) == 0 {
+		return false
+	}
+	return strings.Contains(strings.ToLower(text), strings.ToLower(search))
 }
 
 // convertToRGBA safely converts any color to RGBA

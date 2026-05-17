@@ -209,22 +209,26 @@ func TestElementDetector_FindElementByText(t *testing.T) {
 		{Type: "textfield", Text: "", Selector: "txt1"},
 	}
 
-	// Note: ContainsString is simplified and just checks if both strings are non-empty
-	// So any non-empty search will match all elements with non-empty text
+	// Round-29 §11.4 audit: ContainsString is now real case-insensitive
+	// substring matching (previously returned true for any pair of
+	// non-empty strings, a CONST-035 documentation-comment-bluff). The
+	// expected behaviour now matches the documented contract.
 	submitElements := detector.FindElementByText(elements, "Submit")
 	emptyTextElements := detector.FindElementByText(elements, "")
 
-	// Current simplified implementation: all elements with text match any non-empty search
-	assert.Len(t, submitElements, 3) // btn1, btn2, link1 all have text
+	// "Submit" (case-insensitive) matches only btn1 ("Submit").
+	assert.Len(t, submitElements, 1)
+	assert.Equal(t, "btn1", submitElements[0].Selector)
 
-	// Empty search text should not match anything based on current implementation
+	// Empty search text matches nothing (treated as "no query" per the
+	// helper's documented semantics — empty search returns false, not
+	// mass-match true).
 	assert.Empty(t, emptyTextElements)
 
-	// Verify the elements with text are found
-	foundSelectors := []string{submitElements[0].Selector, submitElements[1].Selector, submitElements[2].Selector}
-	assert.Contains(t, foundSelectors, "btn1")
-	assert.Contains(t, foundSelectors, "btn2")
-	assert.Contains(t, foundSelectors, "link1")
+	// Case-insensitive substring also works.
+	clickElements := detector.FindElementByText(elements, "CLICK")
+	assert.Len(t, clickElements, 1)
+	assert.Equal(t, "link1", clickElements[0].Selector)
 }
 
 // TestElementDetector_FindElementByText_EmptyInput verifies empty input handling

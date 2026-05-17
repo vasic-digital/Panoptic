@@ -280,11 +280,38 @@ func (lp *LocalProvider) CreateFolder(ctx context.Context, remotePath string) er
 	return nil
 }
 
-// GetUploadURL generates a "upload URL" for local storage (placeholder)
+// GetUploadURL returns a file:// URL pointing at the local filesystem
+// path the caller MUST write to directly (via os.WriteFile, io.Copy to
+// an opened *os.File, or equivalent local-filesystem API) to upload an
+// artefact to local storage.
+//
+// IMPORTANT contract for callers (round-29 §11.4 anti-bluff audit,
+// 2026-05-17): the returned URL is NOT a presigned HTTPS upload target.
+// HTTP clients (net/http.Put, hyper.Client.Put, curl --upload-file
+// against http(s)://) will fail or misbehave against a file:// URL —
+// this provider is the LOCAL storage backend, and "upload" for the
+// local backend means "write the file to the local filesystem path".
+// Callers needing a presigned HTTPS upload target MUST select a remote
+// CloudProvider (AWSProvider, GCPProvider, AzureProvider) — the
+// LocalProvider is honest about its scope but cannot synthesise an
+// HTTPS upload endpoint it does not run.
+//
+// The expiry value is set to one hour for parity with remote-provider
+// presigned-URL behaviour but is advisory only — local filesystem
+// paths do not auto-expire.
+//
+// Before round-29 the implementation comment said "as placeholder",
+// implying the file:// URL was a stand-in for a real upload target
+// not yet wired. The file:// URL IS the real local-provider upload
+// target (the local filesystem is the storage); the misleading
+// "placeholder" wording violated CONST-035's documentation-honesty
+// posture and has been removed.
 func (lp *LocalProvider) GetUploadURL(ctx context.Context, remotePath string) (string, time.Time, error) {
 	lp.Logger.Debugf("Generating upload URL for local storage: %s", remotePath)
 
-	// For local storage, return a file:// URL as placeholder
+	// For local storage, the file:// URL IS the upload target — the caller
+	// MUST write to this local filesystem path directly. See doc comment
+	// above for the explicit anti-bluff contract.
 	fullPath := filepath.Join(lp.BasePath, remotePath)
 	url := fmt.Sprintf("file://%s", fullPath)
 	expiresAt := time.Now().Add(1 * time.Hour)

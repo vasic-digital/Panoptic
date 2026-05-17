@@ -295,7 +295,17 @@ func (ait *AIEnhancedTester) collectExecutionMessages(result interface{}, errors
 		messages = append(messages, message)
 	}
 	
-	// Add simulated execution messages
+	// Real warnings derived from the platform's recorded `success_rate`
+	// field (a float64 in [0.0, 1.0] reported by the executor). When the
+	// recorded success rate is below 1.0 we emit a `warn`-level
+	// ErrorMessage carrying the actual percentage plus the full result
+	// map as context. This is NOT a simulated / synthesized message —
+	// the input is the executor's real success-rate metric, the output
+	// is a real ErrorMessage appended to the messages slice the caller
+	// inspects. (Comment corrected in round-29 §11.4 anti-bluff audit,
+	// 2026-05-17; previous wording "Add simulated execution messages"
+	// misdescribed the honest code below and was a CONST-035
+	// documentation-comment-bluff.)
 	if resultMap, ok := result.(map[string]interface{}); ok {
 		if successRate, ok := resultMap["success_rate"].(float64); ok && successRate < 1.0 {
 			message := ErrorMessage{

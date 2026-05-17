@@ -285,9 +285,26 @@ func (w *WebPlatform) takeScreenshotForVision() (string, error) {
 	return tempPath, nil
 }
 
-// ContainsString checks if a string contains a substring (case-insensitive)
+// ContainsString reports whether `text` contains `search` as a
+// case-insensitive substring, mirroring the documented semantics.
+// An empty `search` argument returns false (treated as "no query")
+// rather than the strings.Contains-default of true, because the
+// callers (FindElementByText, GenerateVisionReport assertions) read
+// `false` as "no element matched" — returning true for empty input
+// would let an unintended-empty query mass-match every element.
+//
+// Round-29 §11.4 anti-bluff audit (2026-05-17): the previous body
+// `return len(text) > 0 && len(search) > 0` with the comment
+// "// Simplified for now" was a degenerate non-implementation —
+// it answered "are both arguments non-empty?" rather than "does
+// text contain search?", and a CONST-035 documentation-comment-bluff
+// promised an implementation that did not exist. Now the body is
+// real case-insensitive substring matching.
 func (w *WebPlatform) ContainsString(text, search string) bool {
-	return len(text) > 0 && len(search) > 0 // Simplified for now
+	if len(search) == 0 {
+		return false
+	}
+	return strings.Contains(strings.ToLower(text), strings.ToLower(search))
 }
 
 // GenerateVisionReport creates a computer vision report
