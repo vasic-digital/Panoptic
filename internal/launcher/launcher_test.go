@@ -104,15 +104,20 @@ func TestGetPlatformIcon(t *testing.T) {
 }
 
 // TestDisplayIcon tests displaying launcher icon
+// TestDisplayIcon verifies the §11.4 sentinel "not wired" error
+// returned by display{Windows,MacOS,Linux}Icon (round-17 fix). The
+// previous version asserted NoError on a print-and-return-nil stub —
+// that assertion was CERTIFYING the bluff. The unsupported-platform
+// path retains its own "icon display not supported" error (see
+// TestDisplayIcon_UnsupportedPlatform below).
 func TestDisplayIcon(t *testing.T) {
 	tempDir := t.TempDir()
 	launcher := NewLauncher(tempDir)
 
-	// Test with no icon set (should use platform icon)
 	err := launcher.DisplayIcon()
-	assert.NoError(t, err, "Should display platform icon successfully")
+	require.Error(t, err, "Should return ErrIconDisplayNotWired on supported platforms")
+	assert.Contains(t, err.Error(), "not wired")
 
-	// Test with custom icon set
 	iconPath := filepath.Join(tempDir, "custom.png")
 	err = os.WriteFile(iconPath, []byte("fake png data"), 0644)
 	require.NoError(t, err, "Should create custom icon")
@@ -121,7 +126,8 @@ func TestDisplayIcon(t *testing.T) {
 	require.NoError(t, err, "Should set custom icon")
 
 	err = launcher.DisplayIcon()
-	assert.NoError(t, err, "Should display custom icon successfully")
+	require.Error(t, err, "Should return ErrIconDisplayNotWired even with custom icon set")
+	assert.Contains(t, err.Error(), "not wired")
 }
 
 // TestDisplayIcon_UnsupportedPlatform tests display on unsupported platform

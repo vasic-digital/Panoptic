@@ -100,29 +100,37 @@ func (l *Launcher) DisplayIcon() error {
 	}
 }
 
-// displayWindowsIcon displays the icon on Windows
+// displayWindowsIcon would display the icon on Windows via WinAPI
+// SetConsoleIcon. Not wired; returns ErrIconDisplayNotWired. Previous
+// behavior printed a 🎯-prefixed log line and returned nil, letting
+// any test assertion of "icon displayed" PASS without any platform
+// API call — §11.4 stub-interface bluff.
 func (l *Launcher) displayWindowsIcon(iconPath string) error {
-	// On Windows, we could use Windows API to display the icon
-	// For now, we'll just log that we're displaying it
-	fmt.Printf("🎯 Displaying launcher icon: %s\n", iconPath)
-	return nil
+	fmt.Printf("[§11.4 / CONST-035] displayWindowsIcon: icon=%s but WinAPI SetConsoleIcon dispatch is not wired; returning ErrIconDisplayNotWired\n", iconPath)
+	return ErrIconDisplayNotWired
 }
 
-// displayMacOSIcon displays the icon on macOS
+// displayMacOSIcon would display the icon on macOS via NSApplication
+// .setApplicationIconImage. Not wired; returns ErrIconDisplayNotWired.
 func (l *Launcher) displayMacOSIcon(iconPath string) error {
-	// On macOS, we could use NSImage to display the icon
-	// For now, we'll just log that we're displaying it
-	fmt.Printf("🎯 Displaying launcher icon: %s\n", iconPath)
-	return nil
+	fmt.Printf("[§11.4 / CONST-035] displayMacOSIcon: icon=%s but NSApplication.setApplicationIconImage dispatch is not wired; returning ErrIconDisplayNotWired\n", iconPath)
+	return ErrIconDisplayNotWired
 }
 
-// displayLinuxIcon displays the icon on Linux
+// displayLinuxIcon would display the icon on Linux via GTK
+// gtk_window_set_icon_from_file or freedesktop .desktop entry. Not
+// wired; returns ErrIconDisplayNotWired.
 func (l *Launcher) displayLinuxIcon(iconPath string) error {
-	// On Linux, we could use GTK or other libraries to display the icon
-	// For now, we'll just log that we're displaying it
-	fmt.Printf("🎯 Displaying launcher icon: %s\n", iconPath)
-	return nil
+	fmt.Printf("[§11.4 / CONST-035] displayLinuxIcon: icon=%s but GTK gtk_window_set_icon_from_file dispatch is not wired; returning ErrIconDisplayNotWired\n", iconPath)
+	return ErrIconDisplayNotWired
 }
+
+// ErrIconDisplayNotWired is returned by displayWindowsIcon /
+// displayMacOSIcon / displayLinuxIcon until per-platform native APIs
+// are wired. The previous print-and-return-nil pattern was a §11.4
+// PASS-bluff — callers asserting "icon displayed" got nil for a
+// function that did nothing.
+var ErrIconDisplayNotWired = fmt.Errorf("launcher icon display: per-platform native API dispatch is not wired (Windows: WinAPI SetConsoleIcon; macOS: NSApplication.setApplicationIconImage; Linux: GTK gtk_window_set_icon_from_file); the previous print-and-return-nil path was a §11.4 PASS-bluff and is now removed")
 
 // GetAvailableIcons returns a list of available icons
 func (l *Launcher) GetAvailableIcons() ([]string, error) {
