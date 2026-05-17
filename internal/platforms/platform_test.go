@@ -9,6 +9,7 @@ import (
 	"panoptic/internal/config"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPlatformFactory_CreatePlatform(t *testing.T) {
@@ -198,24 +199,36 @@ func TestDesktopPlatform(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("Navigate", func(t *testing.T) {
+	// Navigate / Fill / Submit now return explicit "not wired" errors
+	// per §11.4 sentinel-error pattern (close-out⁸² 2026-05-17). The
+	// previous assertions used `assert.NoError` against the silent
+	// simulation — they were CERTIFYING the bluff. Tightened: assert
+	// the error fires AND that its message names the missing wiring,
+	// so any future implementation that fills the gap silently still
+	// breaks this test (forcing the implementer to update the
+	// contract explicitly).
+
+	t.Run("Navigate_returns_not_wired_error", func(t *testing.T) {
 		err := platform.Navigate("test://navigation")
-		assert.NoError(t, err)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not wired")
 	})
 
 	t.Run("Click", func(t *testing.T) {
 		err := platform.Click("button.test")
-		assert.NoError(t, err) // Should not fail as it's simulated
+		assert.NoError(t, err) // Click still records to metrics; honest behavior preserved
 	})
 
-	t.Run("Fill", func(t *testing.T) {
+	t.Run("Fill_returns_not_wired_error", func(t *testing.T) {
 		err := platform.Fill("input.test", "test-value")
-		assert.NoError(t, err) // Should not fail as it's simulated
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not wired")
 	})
 
-	t.Run("Submit", func(t *testing.T) {
+	t.Run("Submit_returns_not_wired_error", func(t *testing.T) {
 		err := platform.Submit("form.test")
-		assert.NoError(t, err) // Should not fail as it's simulated
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not wired")
 	})
 
 	t.Run("GetMetrics", func(t *testing.T) {

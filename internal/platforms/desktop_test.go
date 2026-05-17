@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"panoptic/internal/config"
 )
 
@@ -80,43 +81,42 @@ func TestDesktopPlatform_Initialize_NonExistentPath(t *testing.T) {
 }
 
 // Test Navigate input validation
+// Per §11.4 sentinel-error pattern (close-out⁸² 2026-05-17),
+// Navigate now returns "not wired" for non-empty URLs (previously
+// silent metrics-append + nil-return simulation). Input validation
+// (empty URL) still fires before the unwired-error path.
 func TestDesktopPlatform_Navigate_Validation(t *testing.T) {
 	platform := NewDesktopPlatform()
 
 	tests := []struct {
 		name        string
 		url         string
-		wantErr     bool
 		errContains string
 	}{
 		{
-			name:        "empty URL",
+			name:        "empty URL — validation error fires first",
 			url:         "",
-			wantErr:     true,
 			errContains: "url cannot be empty",
 		},
 		{
-			name:    "valid URL",
-			url:     "test://navigation",
-			wantErr: false,
+			name:        "valid URL — returns not-wired sentinel",
+			url:         "test://navigation",
+			errContains: "not wired",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := platform.Navigate(tt.url)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errContains)
-			} else {
-				assert.NoError(t, err)
-			}
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errContains)
 		})
 	}
 }
 
-// Test Navigate metrics tracking
+// Test Navigate metrics tracking — the metrics-append happens before
+// the unwired-error return, so the metrics-tracking invariant holds
+// alongside the new error contract.
 func TestDesktopPlatform_Navigate_MetricsTracking(t *testing.T) {
 	platform := NewDesktopPlatform()
 
@@ -124,15 +124,16 @@ func TestDesktopPlatform_Navigate_MetricsTracking(t *testing.T) {
 	assert.Equal(t, 0, len(initialActions))
 
 	err := platform.Navigate("test://view1")
-	assert.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not wired")
 
 	actions := platform.metrics["navigate_actions"].([]string)
 	assert.Equal(t, 1, len(actions))
 	assert.Equal(t, "test://view1", actions[0])
 
-	// Navigate again
 	err = platform.Navigate("test://view2")
-	assert.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not wired")
 
 	actions = platform.metrics["navigate_actions"].([]string)
 	assert.Equal(t, 2, len(actions))
@@ -197,50 +198,47 @@ func TestDesktopPlatform_Click_MetricsTracking(t *testing.T) {
 func TestDesktopPlatform_Fill_Validation(t *testing.T) {
 	platform := NewDesktopPlatform()
 
+	// All paths now return an error: validation errors (empty
+	// selector / empty value) short-circuit before the "not wired"
+	// sentinel; valid input falls through to the sentinel itself.
 	tests := []struct {
 		name        string
 		selector    string
 		value       string
-		wantErr     bool
 		errContains string
 	}{
 		{
-			name:        "empty selector",
+			name:        "empty selector — validation error",
 			selector:    "",
 			value:       "test",
-			wantErr:     true,
 			errContains: "selector cannot be empty",
 		},
 		{
-			name:        "empty value",
+			name:        "empty value — validation error",
 			selector:    "input.test",
 			value:       "",
-			wantErr:     true,
 			errContains: "value cannot be empty",
 		},
 		{
-			name:     "valid input",
-			selector: "input.test",
-			value:    "test value",
-			wantErr:  false,
+			name:        "valid input — sentinel not-wired error",
+			selector:    "input.test",
+			value:       "test value",
+			errContains: "not wired",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := platform.Fill(tt.selector, tt.value)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errContains)
-			} else {
-				assert.NoError(t, err)
-			}
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errContains)
 		})
 	}
 }
 
-// Test Fill metrics tracking
+// Test Fill metrics tracking — Fill now returns "not wired" per
+// §11.4 sentinel-error contract (close-out⁸²). Metrics-append still
+// happens before the error return, so the metrics invariant holds.
 func TestDesktopPlatform_Fill_MetricsTracking(t *testing.T) {
 	platform := NewDesktopPlatform()
 
@@ -248,16 +246,17 @@ func TestDesktopPlatform_Fill_MetricsTracking(t *testing.T) {
 	assert.Equal(t, 0, len(initialActions))
 
 	err := platform.Fill("input1", "value1")
-	assert.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not wired")
 
 	actions := platform.metrics["fill_actions"].([]map[string]string)
 	assert.Equal(t, 1, len(actions))
 	assert.Equal(t, "input1", actions[0]["selector"])
 	assert.Equal(t, "value1", actions[0]["value"])
 
-	// Fill again
 	err = platform.Fill("input2", "value2")
-	assert.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not wired")
 
 	actions = platform.metrics["fill_actions"].([]map[string]string)
 	assert.Equal(t, 2, len(actions))
@@ -265,7 +264,7 @@ func TestDesktopPlatform_Fill_MetricsTracking(t *testing.T) {
 	assert.Equal(t, "value2", actions[1]["value"])
 }
 
-// Test Submit
+// Test Submit — same sentinel-error contract as Fill/Navigate.
 func TestDesktopPlatform_Submit(t *testing.T) {
 	platform := NewDesktopPlatform()
 
@@ -273,7 +272,8 @@ func TestDesktopPlatform_Submit(t *testing.T) {
 	assert.Equal(t, 0, len(initialActions))
 
 	err := platform.Submit("form.test")
-	assert.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not wired")
 
 	actions := platform.metrics["submit_actions"].([]string)
 	assert.Equal(t, 1, len(actions))
