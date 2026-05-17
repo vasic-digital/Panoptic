@@ -597,3 +597,10 @@ deprecated/
 # Temporary forks
 forks/
 patches/
+# Build-artefact recorders (CONST-053; close-out⁷⁴ scrub)
+/full_test_recorder
+/*_recorder
+*.test_recorder
+
+# Generator output (recreatable; CONST-053)
+/ai_test_generation_output/
