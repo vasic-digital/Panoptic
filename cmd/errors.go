@@ -11,6 +11,7 @@ import (
 
 	"panoptic/internal/ai"
 	"panoptic/internal/logger"
+	"panoptic/pkg/i18n"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -32,14 +33,18 @@ type recommendationOutput struct {
 	Impact   string `json:"impact"`
 }
 
+// Cobra command metadata resolves through pkg/i18n per CONST-046; the
+// active Translator (default NoopTranslator{}) returns the message ID
+// verbatim when no host bundle is wired, preserving standalone
+// behaviour for panoptic.
 var errorsCmd = &cobra.Command{
 	Use:   "errors",
-	Short: "Error detection and analysis commands",
+	Short: i18n.T("panoptic_cmd_errors_short"),
 }
 
 var errorsAnalyzeCmd = &cobra.Command{
 	Use:   "analyze",
-	Short: "Analyze log input for errors",
+	Short: i18n.T("panoptic_cmd_errors_analyze_short"),
 	RunE:  runErrorsAnalyze,
 }
 

@@ -1,0 +1,20 @@
+# Active English i18n bundle for panoptic.
+#
+# Per CONST-046 (no hardcoded user-facing content) the panoptic
+# submodule MUST NOT carry static English literals in its source.
+# This bundle is the authoritative source of English message text
+# for migrated call sites. Host programs MAY override individual
+# entries by wiring a Translator that reads from a locale-specific
+# bundle (active.sr.yaml, active.ja.yaml, etc.).
+#
+# IDs are prefixed `panoptic_` to keep the namespace collision-free
+# when this bundle is merged into a host program's larger i18n store.
+#
+# Round 99a migration scope: cobra command Short: descriptions across
+# cmd/errors.go and cmd/vision.go.
+
+panoptic_cmd_errors_short: "Error detection and analysis commands"
+panoptic_cmd_errors_analyze_short: "Analyze log input for errors"
+panoptic_cmd_vision_short: "Computer vision element detection from screenshots"
+panoptic_cmd_vision_detect_short: "Detect UI elements in a screenshot"
+panoptic_cmd_vision_report_short: "Generate a visual report of detected elements"

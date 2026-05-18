@@ -7,6 +7,7 @@ import (
 
 	"panoptic/internal/logger"
 	"panoptic/internal/vision"
+	"panoptic/pkg/i18n"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -24,20 +25,24 @@ type detectedElementOutput struct {
 	Selector   string  `json:"selector"`
 }
 
+// Cobra command metadata resolves through pkg/i18n per CONST-046; the
+// active Translator (default NoopTranslator{}) returns the message ID
+// verbatim when no host bundle is wired, preserving standalone
+// behaviour for panoptic.
 var visionCmd = &cobra.Command{
 	Use:   "vision",
-	Short: "Computer vision element detection from screenshots",
+	Short: i18n.T("panoptic_cmd_vision_short"),
 }
 
 var visionDetectCmd = &cobra.Command{
 	Use:   "detect",
-	Short: "Detect UI elements in a screenshot",
+	Short: i18n.T("panoptic_cmd_vision_detect_short"),
 	RunE:  runVisionDetect,
 }
 
 var visionReportCmd = &cobra.Command{
 	Use:   "report",
-	Short: "Generate a visual report of detected elements",
+	Short: i18n.T("panoptic_cmd_vision_report_short"),
 	RunE:  runVisionReport,
 }
 
