@@ -11,6 +11,7 @@ import (
 	"panoptic/internal/logger"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Additional tests for improving coverage of low-coverage functions
@@ -174,13 +175,27 @@ func TestExecutor_ExecuteCloudAnalytics_WithData(t *testing.T) {
 	
 	// Initialize cloud analytics
 	executor.getCloudAnalytics()
-	
+
 	// Test executeCloudAnalytics
+	// Anti-bluff (§11.4 / CONST-035, Article XI §11.9): the original assertion
+	// expected an error and matched on "failed to generate analytics" — that
+	// string was the OLD stub/TODO path. Commit e5f67a6 ("feat: implement
+	// GenerateAnalytics and SaveReport — remove all TODO stubs") wired the
+	// real analytics generator + JSON writer, so the live path now succeeds
+	// for a populated executor.results slice. Asserting an error against a
+	// feature that genuinely works is a PASS-bluff in the OPPOSITE direction
+	// (a failing test masking working code). The correct end-user contract:
+	// when results are present and a temp output directory is writable, the
+	// analytics report MUST be produced. Verify that contract with runtime
+	// evidence — file exists on disk, contents are non-empty JSON.
 	app := config.AppConfig{Name: "Test App", Type: "web"}
 	err := executor.executeCloudAnalytics(app)
-	// Should handle cloud analytics not being fully configured
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to generate analytics")
+	require.NoError(t, err, "executeCloudAnalytics should succeed with populated results + writable outputDir")
+
+	reportPath := filepath.Join(tempDir, "cloud_analytics_report.json")
+	info, statErr := os.Stat(reportPath)
+	require.NoError(t, statErr, "analytics report file MUST exist (runtime evidence per §11.4)")
+	assert.Greater(t, info.Size(), int64(0), "analytics report MUST be non-empty (runtime evidence per §11.4)")
 }
 
 func TestExecutor_CalculateSuccessRate_WithData(t *testing.T) {
