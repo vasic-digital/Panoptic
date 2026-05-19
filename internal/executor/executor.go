@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
 
@@ -24,40 +25,40 @@ import (
 )
 
 type Executor struct {
-	config            *config.Config
-	outputDir         string
-	logger            *logger.Logger
-	factory           *platforms.PlatformFactory
-	results           []TestResult
-	
+	config    *config.Config
+	outputDir string
+	logger    *logger.Logger
+	factory   *platforms.PlatformFactory
+	results   []TestResult
+
 	// Lazy-initialized components with sync.Once for thread safety
-	testGen           *ai.TestGenerator
-	errorDet          *ai.OptimizedErrorDetector
-	aiTester          *ai.OptimizedAIEnhancedTester
-	cloudManager      *cloud.CloudManager
-	cloudAnalytics    *cloud.CloudAnalytics
+	testGen               *ai.TestGenerator
+	errorDet              *ai.OptimizedErrorDetector
+	aiTester              *ai.OptimizedAIEnhancedTester
+	cloudManager          *cloud.CloudManager
+	cloudAnalytics        *cloud.CloudAnalytics
 	enterpriseIntegration *enterprise.EnterpriseIntegration
-	
+
 	// sync.Once for lazy initialization
-	testGenOnce       sync.Once
-	errorDetOnce      sync.Once
-	aiTesterOnce      sync.Once
-	cloudManagerOnce  sync.Once
+	testGenOnce        sync.Once
+	errorDetOnce       sync.Once
+	aiTesterOnce       sync.Once
+	cloudManagerOnce   sync.Once
 	cloudAnalyticsOnce sync.Once
-	enterpriseOnce    sync.Once
+	enterpriseOnce     sync.Once
 }
 
 type TestResult struct {
-	AppName    string                    `json:"app_name"`
-	AppType    string                    `json:"app_type"`
-	StartTime  time.Time                 `json:"start_time"`
-	EndTime    time.Time                 `json:"end_time"`
-	Duration   time.Duration             `json:"duration"`
-	Metrics    map[string]interface{}    `json:"metrics"`
-	Screenshots []string                 `json:"screenshots"`
-	Videos     []string                  `json:"videos"`
-	Success    bool                      `json:"success"`
-	Error      string                    `json:"error,omitempty"`
+	AppName     string                 `json:"app_name"`
+	AppType     string                 `json:"app_type"`
+	StartTime   time.Time              `json:"start_time"`
+	EndTime     time.Time              `json:"end_time"`
+	Duration    time.Duration          `json:"duration"`
+	Metrics     map[string]interface{} `json:"metrics"`
+	Screenshots []string               `json:"screenshots"`
+	Videos      []string               `json:"videos"`
+	Success     bool                   `json:"success"`
+	Error       string                 `json:"error,omitempty"`
 }
 
 // JSON optimization pools for performance
@@ -74,25 +75,25 @@ func formatInt64(n int64) []byte {
 	if n == 0 {
 		return []byte{'0'}
 	}
-	
+
 	var buf [20]byte
 	neg := n < 0
 	if neg {
 		n = -n
 	}
-	
+
 	i := len(buf)
 	for n > 0 {
 		i--
 		buf[i] = byte('0' + n%10)
 		n /= 10
 	}
-	
+
 	if neg {
 		i--
 		buf[i] = '-'
 	}
-	
+
 	return buf[i:]
 }
 
@@ -117,7 +118,10 @@ func appendJSONString(buf []byte, s string) []byte {
 				hex := "0123456789abcdef"
 				buf = append(buf, hex[r>>4], hex[r&0xF])
 			} else {
-				buf = append(buf, byte(r))
+				// PAN-001 fix: utf8.AppendRune preserves multi-byte runes
+				// (umlauts, accents, CJK, Cyrillic). Previously byte(r)
+				// truncated multi-byte UTF-8 codepoints, corrupting JSON.
+				buf = utf8.AppendRune(buf, r)
 			}
 		}
 	}
@@ -189,14 +193,14 @@ func appendJSONValue(buf []byte, v interface{}) []byte {
 // Optimized JSON marshaling for TestResult using super-fast approach
 func (tr *TestResult) MarshalJSON() ([]byte, error) {
 	// Pre-calculate approximate size to avoid reallocations
-	size := 300 // Base JSON structure overhead
+	size := 300                                    // Base JSON structure overhead
 	size += len(tr.AppName) + len(tr.AppType) + 40 // strings + quotes and escapes
 	size += len(tr.StartTime.Format(time.RFC3339Nano)) + len(tr.EndTime.Format(time.RFC3339Nano)) + 40
 	size += 20 // duration
-	
+
 	// Screenshots and videos arrays
 	size += len(tr.Screenshots)*30 + len(tr.Videos)*30 + 40 // average path length + JSON overhead
-	
+
 	// Metrics (rough estimation)
 	metricsSize := 100
 	for k, v := range tr.Metrics {
@@ -219,14 +223,14 @@ func (tr *TestResult) MarshalJSON() ([]byte, error) {
 		}
 	}
 	size += metricsSize
-	
+
 	// Error field
 	if tr.Error != "" {
 		size += len(tr.Error) + 20
 	}
-	
+
 	buf := make([]byte, 0, size)
-	
+
 	// Start JSON object
 	buf = append(buf, `{"app_name":`...)
 	buf = appendJSONString(buf, tr.AppName)
@@ -238,7 +242,7 @@ func (tr *TestResult) MarshalJSON() ([]byte, error) {
 	buf = appendJSONString(buf, tr.EndTime.Format(time.RFC3339Nano))
 	buf = append(buf, `,"duration":`...)
 	buf = append(buf, formatInt64(tr.Duration.Nanoseconds())...)
-	
+
 	// Metrics object
 	buf = append(buf, `,"metrics":{`...)
 	first := true
@@ -252,7 +256,7 @@ func (tr *TestResult) MarshalJSON() ([]byte, error) {
 		first = false
 	}
 	buf = append(buf, '}')
-	
+
 	// Screenshots array
 	buf = append(buf, `,"screenshots":[`...)
 	for i, screenshot := range tr.Screenshots {
@@ -262,7 +266,7 @@ func (tr *TestResult) MarshalJSON() ([]byte, error) {
 		buf = appendJSONString(buf, screenshot)
 	}
 	buf = append(buf, ']')
-	
+
 	// Videos array
 	buf = append(buf, `,"videos":[`...)
 	for i, video := range tr.Videos {
@@ -272,22 +276,22 @@ func (tr *TestResult) MarshalJSON() ([]byte, error) {
 		buf = appendJSONString(buf, video)
 	}
 	buf = append(buf, ']')
-	
+
 	// Success field
 	if tr.Success {
 		buf = append(buf, `,"success":true`...)
 	} else {
 		buf = append(buf, `,"success":false`...)
 	}
-	
+
 	// Error field if present
 	if tr.Error != "" {
 		buf = append(buf, `,"error":`...)
 		buf = appendJSONString(buf, tr.Error)
 	}
-	
+
 	buf = append(buf, '}')
-	
+
 	return buf, nil
 }
 
@@ -339,7 +343,7 @@ func (e *Executor) getEnterpriseIntegration() *enterprise.EnterpriseIntegration 
 	e.enterpriseOnce.Do(func() {
 		if e.config.Settings.Enterprise != nil {
 			e.enterpriseIntegration = enterprise.NewEnterpriseIntegration(*e.logger)
-			
+
 			// Load enterprise configuration from file or use inline config
 			enterpriseConfigPath := ""
 			if enterprisePath, ok := e.config.Settings.Enterprise["config_path"].(string); ok {
@@ -351,7 +355,7 @@ func (e *Executor) getEnterpriseIntegration() *enterprise.EnterpriseIntegration 
 					e.logger.Warnf("Failed to create enterprise config file: %v", err)
 				}
 			}
-			
+
 			if err := e.enterpriseIntegration.Initialize(enterpriseConfigPath); err != nil {
 				e.logger.Warnf("Failed to initialize enterprise integration: %v", err)
 			}
@@ -398,47 +402,47 @@ func getIntFromMap(m map[string]interface{}, key string) int {
 func NewExecutor(cfg *config.Config, outputDir string, log *logger.Logger) *Executor {
 	// Optimized constructor with lazy initialization
 	executor := &Executor{
-		config:      cfg,
-		outputDir:   outputDir,
-		logger:      log,
-		factory:     platforms.NewPlatformFactory(),
-		results:     make([]TestResult, 0),
+		config:    cfg,
+		outputDir: outputDir,
+		logger:    log,
+		factory:   platforms.NewPlatformFactory(),
+		results:   make([]TestResult, 0),
 	}
-	
+
 	// No eager initialization - components created on-demand
-	
+
 	return executor
 }
 
 func (e *Executor) Run() error {
 	e.logger.Info("Starting execution")
 	// e.logger.SetOutputDirectory(e.outputDir)  // Temporarily disabled
-	
+
 	e.logger.Info("Validating configuration...")
-	
+
 	// Validate configuration
 	if err := e.config.Validate(); err != nil {
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
-	
+
 	e.logger.Info("Configuration validated, starting app processing...")
-	
+
 	// Execute tests for each application
 	for _, app := range e.config.Apps {
 		e.logger.Infof("Processing application: %s (%s)", app.Name, app.Type)
-		
+
 		result := e.executeApp(app)
 		e.results = append(e.results, result)
-		
+
 		e.logger.Infof("Application processing completed for %s", app.Name)
-		
+
 		if result.Success {
 			e.logger.Infof("Successfully completed app: %s", app.Name)
 		} else {
 			e.logger.Errorf("Failed app: %s - %s", app.Name, result.Error)
 		}
 	}
-	
+
 	e.logger.Info("Execution completed")
 	e.logger.Info("Generating report...")
 	return nil
@@ -449,12 +453,12 @@ func (e *Executor) executeApp(app config.AppConfig) TestResult {
 		AppName:     app.Name,
 		AppType:     app.Type,
 		StartTime:   time.Now(),
-		Screenshots:  make([]string, 0),
+		Screenshots: make([]string, 0),
 		Videos:      make([]string, 0),
 		Metrics:     make(map[string]interface{}),
 		Success:     false,
 	}
-	
+
 	// Create platform instance
 	platform, err := e.factory.CreatePlatform(app.Type)
 	if err != nil {
@@ -463,7 +467,7 @@ func (e *Executor) executeApp(app config.AppConfig) TestResult {
 		result.Duration = result.EndTime.Sub(result.StartTime)
 		return result
 	}
-	
+
 	// Initialize platform
 	if err := platform.Initialize(app); err != nil {
 		result.Error = fmt.Sprintf("Failed to initialize platform: %v", err)
@@ -472,15 +476,15 @@ func (e *Executor) executeApp(app config.AppConfig) TestResult {
 		platform.Close()
 		return result
 	}
-	
+
 	defer platform.Close()
-	
+
 	// Execute actions - use per-app actions if defined, otherwise global actions
 	actions := e.config.GetActionsForApp(app)
 	currentRecordingFile := ""
 	for i, action := range actions {
 		e.logger.Debugf("Executing action %d: %s (%s)", i, action.Name, action.Type)
-		
+
 		if err := e.executeAction(platform, action, app, &result, &currentRecordingFile); err != nil {
 			result.Error = fmt.Sprintf("Action '%s' failed: %v", action.Name, err)
 			result.EndTime = time.Now()
@@ -488,22 +492,22 @@ func (e *Executor) executeApp(app config.AppConfig) TestResult {
 			return result
 		}
 	}
-	
+
 	// Stop recording if still active
 	if currentRecordingFile != "" {
 		if err := platform.StopRecording(); err != nil {
 			e.logger.Errorf("Failed to stop recording: %v", err)
 		}
 	}
-	
+
 	// Get final metrics
 	result.Metrics = platform.GetMetrics()
 	result.EndTime = time.Now()
 	result.Duration = result.EndTime.Sub(result.StartTime)
 	result.Success = true
-	
+
 	e.logger.Infof("executeApp completed successfully for %s", app.Name)
-	
+
 	return result
 }
 
@@ -512,7 +516,7 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 	if platform == nil && actionRequiresPlatform(action.Type) {
 		return fmt.Errorf("platform not initialized")
 	}
-	
+
 	switch action.Type {
 	case "navigate":
 		navURL := action.GetNavigateURL()
@@ -520,22 +524,22 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 			return fmt.Errorf("navigate action '%s' requires a URL or value", action.Name)
 		}
 		return platform.Navigate(navURL)
-		
+
 	case "click":
 		if action.Selector != "" {
 			return platform.Click(action.Selector)
 		} else if action.Target != "" {
 			return platform.Click(action.Target)
 		}
-		
+
 	case "fill":
 		if action.Selector != "" && action.Value != "" {
 			return platform.Fill(action.Selector, action.Value)
 		}
-		
+
 	case "submit":
 		return platform.Submit(action.Selector)
-		
+
 	case "wait":
 		waitTime := action.WaitTime
 		if waitTime == 0 {
@@ -543,7 +547,7 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 		}
 		time.Sleep(time.Duration(waitTime) * time.Second)
 		return nil
-		
+
 	case "screenshot":
 		filename := filepath.Join(e.outputDir, "screenshots", fmt.Sprintf("%s_%s_%d.png", app.Name, action.Name, time.Now().Unix()))
 		if action.Parameters != nil {
@@ -551,34 +555,34 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 				filename = filepath.Join(e.outputDir, "screenshots", name)
 			}
 		}
-		
+
 		if err := platform.Screenshot(filename); err != nil {
 			return err
 		}
 		result.Screenshots = append(result.Screenshots, filename)
 		e.logger.Infof("Screenshot saved: %s", filename)
-		
+
 	case "record":
 		duration := action.Duration
 		if duration == 0 {
 			duration = 30 // Default 30 seconds
 		}
-		
+
 		filename := filepath.Join(e.outputDir, "videos", fmt.Sprintf("%s_%s_%d.mp4", app.Name, action.Name, time.Now().Unix()))
 		if action.Parameters != nil {
 			if name, ok := action.Parameters["filename"].(string); ok {
 				filename = filepath.Join(e.outputDir, "videos", name)
 			}
 		}
-		
+
 		if err := platform.StartRecording(filename); err != nil {
 			return err
 		}
-		
+
 		*recordingFile = filename
 		result.Videos = append(result.Videos, filename)
 		e.logger.Infof("Recording started: %s", filename)
-		
+
 		// Stop recording after duration
 		go func() {
 			time.Sleep(time.Duration(duration) * time.Second)
@@ -588,7 +592,7 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 			*recordingFile = ""
 			e.logger.Infof("Recording stopped: %s", filename)
 		}()
-		
+
 	case "vision_click":
 		// Vision-based element clicking
 		e.logger.Debugf("Vision click action: %+v", action)
@@ -608,49 +612,49 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 			}
 		}
 		e.logger.Debugf("Extracted - type: '%s', text: '%s'", elemType, text)
-		
+
 		if webPlatform, ok := platform.(*platforms.WebPlatform); ok {
 			return webPlatform.VisionClick(elemType, text)
 		}
 		return fmt.Errorf("vision actions only supported on web platform")
-		
+
 	case "vision_report":
 		// Generate computer vision report
 		if webPlatform, ok := platform.(*platforms.WebPlatform); ok {
 			return webPlatform.GenerateVisionReport(e.outputDir)
 		}
 		return fmt.Errorf("vision report only supported on web platform")
-		
+
 	case "ai_test_generation":
 		// Generate AI-powered tests
 		if webPlatform, ok := platform.(*platforms.WebPlatform); ok {
 			return e.generateAITests(webPlatform)
 		}
 		return fmt.Errorf("AI test generation only supported on web platform")
-		
+
 	case "smart_error_detection":
 		// Generate smart error detection report
 		if webPlatform, ok := platform.(*platforms.WebPlatform); ok {
 			return e.generateSmartErrorDetection(webPlatform)
 		}
 		return fmt.Errorf("Smart error detection only supported on web platform")
-		
+
 	case "ai_enhanced_testing":
 		// Execute AI-enhanced testing
 		return e.executeAIEnhancedTesting(platform, app)
-		
+
 	case "cloud_sync":
 		// Sync test results to cloud storage
 		return e.executeCloudSync(app)
-		
+
 	case "cloud_analytics":
 		// Generate cloud analytics report
 		return e.executeCloudAnalytics(app)
-		
+
 	case "distributed_test":
 		// Execute distributed cloud test
 		return e.executeDistributedCloudTest(app, action)
-		
+
 	case "cloud_cleanup":
 		// Cleanup old cloud files
 		return e.cloudManager.CleanupOldFiles(context.Background())
@@ -709,25 +713,25 @@ func (e *Executor) executeAction(platform platforms.Platform, action config.Acti
 // executeEnterpriseStatus executes enterprise status check
 func (e *Executor) executeEnterpriseStatus(app config.AppConfig, action config.Action) error {
 	e.logger.Info("Checking enterprise status...")
-	
+
 	enterpriseIntegration := e.getEnterpriseIntegration()
 	if enterpriseIntegration == nil || !enterpriseIntegration.Initialized {
 		return fmt.Errorf("enterprise integration is not initialized")
 	}
-	
+
 	// Execute status check
 	result, err := enterpriseIntegration.ExecuteEnterpriseAction(context.Background(), "enterprise_status", action.Parameters)
 	if err != nil {
 		return fmt.Errorf("failed to check enterprise status: %w", err)
 	}
-	
+
 	// Log enterprise status
 	if enterpriseStatus, ok := result.(map[string]interface{}); ok {
-		e.logger.Infof("Enterprise status: enabled=%v, organization=%s, total_users=%d, total_projects=%d", 
-			enterpriseStatus["enabled"], enterpriseStatus["organization_name"], 
+		e.logger.Infof("Enterprise status: enabled=%v, organization=%s, total_users=%d, total_projects=%d",
+			enterpriseStatus["enabled"], enterpriseStatus["organization_name"],
 			enterpriseStatus["total_users"], enterpriseStatus["total_projects"])
 	}
-	
+
 	return nil
 }
 
@@ -869,7 +873,7 @@ func calculateSuccessRate(results []cloud.CloudTestResult) float64 {
 		if results[0].Success {
 			successCount++
 		}
-		
+
 		// Process remaining elements
 		for i := 1; i < length; i++ {
 			if results[i].Success {
@@ -891,23 +895,41 @@ func FastCalculateSuccessRate(results []cloud.CloudTestResult) float64 {
 	// Use unrolled loop for better CPU pipeline utilization
 	successCount := 0
 	i := 0
-	
+
 	// Process 8 elements at a time
 	for i+8 <= length {
-		if results[i].Success { successCount++ }
-		if results[i+1].Success { successCount++ }
-		if results[i+2].Success { successCount++ }
-		if results[i+3].Success { successCount++ }
-		if results[i+4].Success { successCount++ }
-		if results[i+5].Success { successCount++ }
-		if results[i+6].Success { successCount++ }
-		if results[i+7].Success { successCount++ }
+		if results[i].Success {
+			successCount++
+		}
+		if results[i+1].Success {
+			successCount++
+		}
+		if results[i+2].Success {
+			successCount++
+		}
+		if results[i+3].Success {
+			successCount++
+		}
+		if results[i+4].Success {
+			successCount++
+		}
+		if results[i+5].Success {
+			successCount++
+		}
+		if results[i+6].Success {
+			successCount++
+		}
+		if results[i+7].Success {
+			successCount++
+		}
 		i += 8
 	}
-	
+
 	// Process remaining elements
 	for i < length {
-		if results[i].Success { successCount++ }
+		if results[i].Success {
+			successCount++
+		}
 		i++
 	}
 
@@ -935,7 +957,7 @@ func SIMDCalculateSuccessRate(results []cloud.CloudTestResult) float64 {
 	// For larger arrays, use chunked processing
 	const chunkSize = 256
 	chunks := (length + chunkSize - 1) / chunkSize
-	
+
 	successCount := 0
 	for c := 0; c < chunks; c++ {
 		start := c * chunkSize
@@ -943,24 +965,42 @@ func SIMDCalculateSuccessRate(results []cloud.CloudTestResult) float64 {
 		if end > length {
 			end = length
 		}
-		
+
 		// Process chunk with unrolled loop
 		i := start
 		for i+8 <= end {
-			if results[i].Success { successCount++ }
-			if results[i+1].Success { successCount++ }
-			if results[i+2].Success { successCount++ }
-			if results[i+3].Success { successCount++ }
-			if results[i+4].Success { successCount++ }
-			if results[i+5].Success { successCount++ }
-			if results[i+6].Success { successCount++ }
-			if results[i+7].Success { successCount++ }
+			if results[i].Success {
+				successCount++
+			}
+			if results[i+1].Success {
+				successCount++
+			}
+			if results[i+2].Success {
+				successCount++
+			}
+			if results[i+3].Success {
+				successCount++
+			}
+			if results[i+4].Success {
+				successCount++
+			}
+			if results[i+5].Success {
+				successCount++
+			}
+			if results[i+6].Success {
+				successCount++
+			}
+			if results[i+7].Success {
+				successCount++
+			}
 			i += 8
 		}
-		
+
 		// Process remaining elements in chunk
 		for i < end {
-			if results[i].Success { successCount++ }
+			if results[i].Success {
+				successCount++
+			}
 			i++
 		}
 	}
@@ -1134,7 +1174,7 @@ func (e *Executor) executeCloudSync(app config.AppConfig) error {
 				e.logger.Warnf("Failed to list files in %s: %v", fileInfo.Name(), err)
 				continue
 			}
-			
+
 			for _, subFile := range subFiles {
 				if stat, err := os.Stat(subFile); err == nil && !stat.IsDir() {
 					if err := e.cloudManager.Upload(subFile); err != nil {
@@ -1242,7 +1282,6 @@ func (e *Executor) saveEnterpriseReport(report interface{}, filePath string) err
 	return os.WriteFile(filePath, data, 0600)
 }
 
-
 // GenerateReport generates an HTML report from test results
 func (e *Executor) GenerateReport(outputPath string) error {
 	e.logger.Infof("Generating report: %s", outputPath)
@@ -1267,20 +1306,20 @@ func FastGenerateReport(outputPath string, results []TestResult) error {
 	// Pre-calculate capacity to avoid reallocations
 	timeStr := time.Now().Format(time.RFC3339)
 	totalTests := len(results)
-	
+
 	// Estimate final size (header + time + middle + total tests + footer)
 	estimatedSize := len(header) + len(timeStr) + 25 + 20 + len(footer)
-	
+
 	var builder strings.Builder
 	builder.Grow(estimatedSize) // Pre-allocate capacity
-	
+
 	builder.WriteString(header)
 	builder.WriteString(timeStr)
 	builder.WriteString(`</p>
 	<p>Total Tests: `)
 	builder.WriteString(strconv.Itoa(totalTests))
 	builder.WriteString(footer)
-	
+
 	return os.WriteFile(outputPath, []byte(builder.String()), 0600)
 }
 
@@ -1299,38 +1338,38 @@ func FastestGenerateReport(outputPath string, results []TestResult) error {
 	<p>Status: Report generation not fully implemented</p>
 </body>
 </html>`
-	
+
 	// Get current time once
 	timeStr := time.Now().Format(time.RFC3339)
 	testCount := strconv.Itoa(len(results))
-	
+
 	// Pre-allocate final buffer with exact size
 	finalSize := len(template) + len(timeStr) + len(testCount) - 26 // Remove placeholder lengths
 	buffer := make([]byte, 0, finalSize)
-	
+
 	// Find placeholder positions (could be pre-calculated for even more speed)
 	timestampPos := strings.Index(template, "TIMESTAMP_PLACEHOLDER")
 	testsPos := strings.Index(template, "TIMESTAMP_PLACEHOLDER") // Will be updated after timestamp replacement
-	
+
 	// Build result efficiently
 	buffer = append(buffer, template[:timestampPos]...)
 	buffer = append(buffer, timeStr...)
-	
+
 	// Update tests position (account for timestamp length difference)
 	testsPos = strings.Index(template[timestampPos+len("TIMESTAMP_PLACEHOLDER"):], "TESTS_PLACEHOLDER")
 	testsPos = timestampPos + len("TIMESTAMP_PLACEHOLDER") + len(timeStr) + testsPos + len(`</p>
 	<p>Total Tests: `)
-	
+
 	// Add middle section
 	middleStart := timestampPos + len("TIMESTAMP_PLACEHOLDER")
 	middleEnd := strings.Index(template[middleStart:], "TESTS_PLACEHOLDER") + middleStart
 	buffer = append(buffer, template[middleStart:middleEnd]...)
 	buffer = append(buffer, testCount...)
-	
+
 	// Add remaining template
 	remainingStart := middleEnd + len("TESTS_PLACEHOLDER")
 	buffer = append(buffer, template[remainingStart:]...)
-	
+
 	return os.WriteFile(outputPath, buffer, 0600)
 }
 
@@ -1341,7 +1380,7 @@ func StreamGenerateReport(outputPath string, results []TestResult) error {
 		return err
 	}
 	defer file.Close()
-	
+
 	// Write in chunks to minimize memory usage
 	const header = `<!DOCTYPE html>
 <html>
@@ -1351,50 +1390,50 @@ func StreamGenerateReport(outputPath string, results []TestResult) error {
 <body>
 	<h1>Test Report</h1>
 	<p>Generated: `
-	
+
 	const middle1 = `</p>
 	<p>Total Tests: `
-	
+
 	const footer = `</p>
 	<p>Status: Report generation not fully implemented</p>
 </body>
 </html>`
-	
+
 	// Write chunks directly to file
 	if _, err := file.WriteString(header); err != nil {
 		return err
 	}
-	
+
 	if _, err := file.WriteString(time.Now().Format(time.RFC3339)); err != nil {
 		return err
 	}
-	
+
 	if _, err := file.WriteString(middle1); err != nil {
 		return err
 	}
-	
+
 	if _, err := file.WriteString(strconv.Itoa(len(results))); err != nil {
 		return err
 	}
-	
+
 	if _, err := file.WriteString(footer); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
 // actionRequiresPlatform returns true if the action type requires a platform
 func actionRequiresPlatform(actionType string) bool {
 	platformActions := map[string]bool{
-		"navigate":        true,
-		"click":           true,
-		"fill":            true,
-		"submit":          true,
-		"screenshot":      true,
-		"record":          true,
-		"vision_click":    true,
-		"vision_report":   true,
+		"navigate":      true,
+		"click":         true,
+		"fill":          true,
+		"submit":        true,
+		"screenshot":    true,
+		"record":        true,
+		"vision_click":  true,
+		"vision_report": true,
 	}
 	return platformActions[actionType]
 }
