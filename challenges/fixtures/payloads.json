@@ -1,0 +1,79 @@
+{
+  "_meta": {
+    "round": "round-298",
+    "purpose": "Bilingual fixture set for panoptic round-298 anti-bluff runner. Each entry exercises a real production primitive (i18n.Translator, config.Load+Validate, executor.Action serialisation) byte-preserving non-ASCII input through the full pipeline. Per Article XI §11.9 every PASS reported by the runner is backed by positive runtime evidence captured during execution.",
+    "mandate_2026_05_19": "all existing tests and Challenges do work in anti-bluff manner - they MUST confirm that all tested codebase really works as expected!"
+  },
+  "locales": [
+    {
+      "locale": "en",
+      "display_name": "English (US)",
+      "i18n": {
+        "message_id": "panoptic_cmd_run_short",
+        "expected_via_noop": "panoptic_cmd_run_short"
+      },
+      "config": {
+        "name": "Round-298 EN smoke",
+        "app_name": "Acceptance EN",
+        "url": "https://example.com/en/home",
+        "action_value": "Search query: weather forecast"
+      }
+    },
+    {
+      "locale": "de",
+      "display_name": "Deutsch (Deutschland)",
+      "i18n": {
+        "message_id": "panoptic_cmd_record_short",
+        "expected_via_noop": "panoptic_cmd_record_short"
+      },
+      "config": {
+        "name": "Round-298 DE Übung",
+        "app_name": "Akzeptanz DE",
+        "url": "https://example.com/de/startseite",
+        "action_value": "Suchanfrage: Wetterüberprüfung — Größe Straße"
+      }
+    },
+    {
+      "locale": "es",
+      "display_name": "Español (España)",
+      "i18n": {
+        "message_id": "panoptic_cmd_vision_short",
+        "expected_via_noop": "panoptic_cmd_vision_short"
+      },
+      "config": {
+        "name": "Round-298 ES ejercicio",
+        "app_name": "Aceptación ES",
+        "url": "https://example.com/es/inicio",
+        "action_value": "Consulta: pronóstico de mañana — niño, año, español"
+      }
+    },
+    {
+      "locale": "ja",
+      "display_name": "日本語 (日本)",
+      "i18n": {
+        "message_id": "panoptic_cmd_errors_short",
+        "expected_via_noop": "panoptic_cmd_errors_short"
+      },
+      "config": {
+        "name": "Round-298 JA 受け入れ",
+        "app_name": "受入確認",
+        "url": "https://example.com/ja/ホーム",
+        "action_value": "検索クエリ: 明日の天気予報 — 漢字 ひらがな カタカナ"
+      }
+    },
+    {
+      "locale": "sr",
+      "display_name": "Српски (Србија)",
+      "i18n": {
+        "message_id": "panoptic_cmd_testgen_short",
+        "expected_via_noop": "panoptic_cmd_testgen_short"
+      },
+      "config": {
+        "name": "Round-298 SR прихватање",
+        "app_name": "Прихватање СР",
+        "url": "https://example.com/sr/почетна",
+        "action_value": "Упит за претрагу: прогноза за сутра — ћирилица љњџ"
+      }
+    }
+  ]
+}

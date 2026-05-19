@@ -183,6 +183,11 @@ coverage.out
 perf_results/
 test_data/
 fixtures/
+# Round-298 reference assets — fixture inputs are version-controlled per
+# CONST-053 ("runtime captures unless reference assets"). They are not
+# generated and not derivable from sources.
+!challenges/fixtures/
+!challenges/fixtures/**
 mock_apps/
 templates/
 panoptic_metrics*.json
