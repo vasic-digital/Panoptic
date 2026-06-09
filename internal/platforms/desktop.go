@@ -289,39 +289,18 @@ func (d *DesktopPlatform) StartRecording(filename string) error {
 			// Fallback to placeholder file if recording fails
 			return d.createVideoPlaceholder(filename, fmt.Sprintf("Failed to start %s recording", runtime.GOOS))
 		}
-		// Logging would go here: fmt.Printf("Desktop video recording started: %s", filename)
+		// Store the running command so StopRecording can terminate it later.
+		d.recordingCmd = cmd
 	} else {
 		// Create placeholder if no recording method available
 		return d.createVideoPlaceholder(filename, "No recording method available for this platform")
 	}
-	
+
 	d.recording = true
 	d.metrics["recording_started"] = time.Now()
 	d.metrics["recording_file"] = filename
 	d.metrics["recording_method"] = runtime.GOOS
-	
-	return nil
-	
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
-		return fmt.Errorf("failed to create video directory: %w", err)
-	}
-	
-	if cmd != nil {
-		// Start recording in background
-		if err := cmd.Start(); err != nil {
-			return fmt.Errorf("failed to start recording: %w", err)
-		}
-		// Store the command to stop it later
-		d.recordingCmd = cmd
-	} else {
-		// No recording method available, create placeholder
-		return d.createVideoPlaceholder(filename, "No recording method available for this platform")
-	}
-	
-	d.recording = true
-	d.metrics["recording_started"] = time.Now()
-	d.metrics["recording_file"] = filename
-	
+
 	return nil
 }
 
