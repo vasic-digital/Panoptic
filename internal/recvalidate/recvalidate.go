@@ -42,8 +42,6 @@ var chatErrorTokens = []string{
 	"no providers",
 	"0 models",
 	"no models",
-	"not selected",
-	"unhealthy",
 	"provider error",
 	"model error",
 	"panic",
@@ -53,6 +51,14 @@ var chatErrorTokens = []string{
 	"rate limit",
 	"quota exceeded",
 }
+
+// nonzeroUnhealthyRe matches a provider-health readout reporting a STRICTLY
+// POSITIVE unhealthy count ("Unhealthy: 3"). The benign healthy state
+// "Unhealthy: 0" MUST NOT trip the no-error check — a bare "unhealthy" substring
+// match would false-flag a perfectly healthy TUI (the §11.4.107(10) analyzer
+// self-bluff this guards against). OCR may render the colon as a stray glyph, so
+// the separator is tolerant.
+var nonzeroUnhealthyRe = regexp.MustCompile(`(?i)unhealthy\s*[:;.]?\s*[1-9]`)
 
 // Frame extraction sampling default (frames per video-second).
 const defaultFPS = 1.0
@@ -79,6 +85,19 @@ type Options struct {
 	// appear AFTER a prompt on screen for the reply to count as "real".
 	// Defaults to 12 if <=0.
 	MinReplyChars int
+	// ChromeLinePatterns are CONSUMER-SUPPLIED case-insensitive regex patterns
+	// matching ambient UI chrome lines (sidebar labels, status panels, command
+	// lists) that the full-frame OCR interleaves into the reply region and that
+	// MUST NOT be miscounted as model-reply prose. Panoptic ships ZERO defaults
+	// here — chrome is application-specific, so the consuming project passes its
+	// own patterns (CONST-051(B) decoupling — no consumer UI strings live in this
+	// reusable submodule).
+	ChromeLinePatterns []string
+	// ReplyMarkers are the assistant-turn prefixes the chat UI renders before a
+	// model reply (e.g. "AI:"). Defaults to generic chat conventions when empty;
+	// a consumer with a different convention overrides it. Matched
+	// case-insensitively.
+	ReplyMarkers []string
 }
 
 // CheckResult is one assertion's verdict.
@@ -218,6 +237,12 @@ func (r *Report) runChecks(v *Validator, aggregated string, opts Options) {
 			hitTokens = append(hitTokens, tok)
 		}
 	}
+	// Provider health: flag ONLY a strictly-positive unhealthy count. The benign
+	// "Unhealthy: 0" healthy state must never trip this (a bare substring match
+	// would — the §11.4.107(10) analyzer self-bluff guarded here).
+	if m := nonzeroUnhealthyRe.FindString(aggregated); m != "" {
+		hitTokens = append(hitTokens, strings.TrimSpace(m))
+	}
 
 	noErrPass := len(detected) == 0 && len(hitTokens) == 0
 	detail := "no error/warning tokens detected on screen"
@@ -244,8 +269,10 @@ func (r *Report) runChecks(v *Validator, aggregated string, opts Options) {
 	if minReply <= 0 {
 		minReply = 12
 	}
+	replyMarkers := resolveReplyMarkers(opts.ReplyMarkers)
+	chromeRes := compileChromePatterns(opts.ChromeLinePatterns)
 	for i, prompt := range opts.ExpectedPrompts {
-		ok, ev := promptHasReply(aggregated, prompt, minReply, errTokens)
+		ok, ev := promptHasReply(aggregated, prompt, minReply, errTokens, replyMarkers, chromeRes)
 		name := fmt.Sprintf("prompt_%d_has_reply", i+1)
 		d := "real prose reply present after prompt"
 		if !ok {
@@ -282,7 +309,7 @@ func (r *Report) add(c CheckResult) {
 // chrome ("Error: no provider ...") must NOT count as a real model reply, so
 // any error token present in the post-prompt region is excised before the
 // prose count — otherwise a failure message would masquerade as an answer.
-func promptHasReply(aggregated, prompt string, minChars int, errTokens []string) (bool, string) {
+func promptHasReply(aggregated, prompt string, minChars int, errTokens, replyMarkers []string, chromeRes []*regexp.Regexp) (bool, string) {
 	lowerPrompt := strings.ToLower(strings.TrimSpace(prompt))
 	if lowerPrompt == "" {
 		return false, "empty prompt"
@@ -301,9 +328,23 @@ func promptHasReply(aggregated, prompt string, minChars int, errTokens []string)
 	if cut := strings.Index(after, "\n>"); cut > 0 {
 		after = after[:cut]
 	}
+	// Anchor on the assistant turn marker (generic chat conventions / consumer
+	// override) when one is present in the region: the real reply is the prose
+	// AFTER that marker, not the ambient UI chrome (sidebar labels, status
+	// panels, command lists) the full-frame OCR interleaves into the same
+	// region. Combined with the consumer-supplied chrome patterns, this is what
+	// stops an error-only turn from PASSing on surrounding static chrome (the
+	// §11.4.107(10) self-bluff guarded by the golden-bad fixture). When no marker
+	// is present the region is used as-is so marker-less UIs still validate.
+	if region, ok := afterReplyMarker(after, replyMarkers); ok {
+		after = region
+	}
 	// Excise error-token content + generic error words so failure chrome can
 	// never count as a real reply (anti-bluff: an error IS NOT an answer).
 	cleaned := stripErrorChrome(after, errTokens)
+	// Drop ambient UI chrome lines (consumer-supplied patterns) so they can
+	// never be miscounted as reply prose.
+	cleaned = stripChromeLines(cleaned, chromeRes)
 	// Strip spinner/placeholder noise so a spinner can never count as a reply.
 	cleaned = stripNoise(cleaned)
 	prose := proseChars(cleaned)
@@ -317,6 +358,89 @@ func promptHasReply(aggregated, prompt string, minChars int, errTokens []string)
 // stripErrorChrome removes any line containing an error token or a generic
 // error indicator from the candidate reply region. A reply that is ENTIRELY
 // error chrome therefore counts as zero prose.
+// genericReplyMarkers are generic chat-convention assistant-turn prefixes used
+// when the consumer supplies none. They are conventions (not any consumer's UI
+// strings), so they stay project-agnostic per CONST-051(B).
+var genericReplyMarkers = []string{"ai:", "assistant:", "bot:", "response:", "model:"}
+
+// resolveReplyMarkers lower-cases the consumer's markers, or returns the generic
+// defaults when none are supplied.
+func resolveReplyMarkers(markers []string) []string {
+	if len(markers) == 0 {
+		return genericReplyMarkers
+	}
+	out := make([]string, 0, len(markers))
+	for _, m := range markers {
+		if m = strings.ToLower(strings.TrimSpace(m)); m != "" {
+			out = append(out, m)
+		}
+	}
+	if len(out) == 0 {
+		return genericReplyMarkers
+	}
+	return out
+}
+
+// compileChromePatterns compiles the CONSUMER-SUPPLIED chrome-line regexes
+// (case-insensitive). Panoptic ships NONE of its own — chrome is application-
+// specific (CONST-051(B)). Invalid patterns are skipped (the caller's mistake
+// must not crash a validation run).
+func compileChromePatterns(patterns []string) []*regexp.Regexp {
+	var out []*regexp.Regexp
+	for _, p := range patterns {
+		if strings.TrimSpace(p) == "" {
+			continue
+		}
+		if re, err := regexp.Compile("(?i)" + p); err == nil {
+			out = append(out, re)
+		}
+	}
+	return out
+}
+
+// afterReplyMarker returns the text following the FIRST assistant-turn marker in
+// the region, and true when a marker was found. The reply is what the assistant
+// said, not the chrome around it.
+func afterReplyMarker(region string, markers []string) (string, bool) {
+	low := strings.ToLower(region)
+	best := -1
+	for _, m := range markers {
+		if idx := strings.Index(low, m); idx >= 0 {
+			end := idx + len(m)
+			if best < 0 || end < best {
+				best = end
+			}
+		}
+	}
+	if best < 0 {
+		return region, false
+	}
+	return region[best:], true
+}
+
+// stripChromeLines removes ambient UI chrome lines (matched by the consumer's
+// patterns) so they cannot be miscounted as reply prose. With no patterns it is
+// a no-op — Panoptic never assumes a consumer's UI layout.
+func stripChromeLines(s string, chromeRes []*regexp.Regexp) string {
+	if len(chromeRes) == 0 {
+		return s
+	}
+	var keep []string
+	for _, line := range strings.Split(s, "\n") {
+		drop := false
+		for _, re := range chromeRes {
+			if re.MatchString(line) {
+				drop = true
+				break
+			}
+		}
+		if !drop {
+			keep = append(keep, line)
+		}
+	}
+	return strings.Join(keep, "\n")
+}
+
 func stripErrorChrome(s string, errTokens []string) string {
 	tokens := append([]string{}, errTokens...)
 	tokens = append(tokens, "error", "failed", "failure", "exception",

@@ -267,3 +267,81 @@ type wrappedErr struct {
 }
 
 func (w *wrappedErr) Error() string { return w.err.Error() + ": " + w.ctx }
+
+// TestNoError_HealthyZeroUnhealthy_Passes is the §11.4.107(10) self-validation
+// for the analyzer false-positives found while validating the HelixCode TUI
+// videos: the benign "Unhealthy: 0" health readout (= ZERO unhealthy = healthy)
+// and the "Not selected" pre-selection label MUST NOT trip the no-error check.
+func TestNoError_HealthyZeroUnhealthy_Passes(t *testing.T) {
+	healthy := "> /model\nProvider Status\nHealthy: 5\nUnhealthy: 0\nCurrent Model\nNot selected\n" +
+		"> Hello there\nAI: Hi! How can I help you today, friend?\n"
+	v := NewValidator(*logger.NewLogger(false))
+	rep := v.ValidateText(healthy, Options{ExpectedPrompts: []string{"Hello there"}, MinReplyChars: 12})
+	c := checkByName(rep, "no_error_tokens")
+	if c == nil || !c.Pass {
+		t.Fatalf("healthy 'Unhealthy: 0' + 'Not selected' must NOT flag an error; detail=%v", c)
+	}
+}
+
+// TestNoError_NonzeroUnhealthy_Fails is the discriminating partner: a STRICTLY
+// POSITIVE unhealthy count IS a real error and MUST trip the check. Strip the
+// nonzeroUnhealthyRe guard and this FAILs (paired §1.1).
+func TestNoError_NonzeroUnhealthy_Fails(t *testing.T) {
+	unhealthy := "Provider Status\nHealthy: 2\nUnhealthy: 3\n> Hi\nAI: hello back to you my friend\n"
+	v := NewValidator(*logger.NewLogger(false))
+	rep := v.ValidateText(unhealthy, Options{ExpectedPrompts: []string{"Hi"}, MinReplyChars: 12})
+	c := checkByName(rep, "no_error_tokens")
+	if c == nil || c.Pass {
+		t.Fatalf("'Unhealthy: 3' (nonzero) MUST flag an error; detail=%v", c)
+	}
+}
+
+// TestReplyCheck_ErrorReplyWithChrome_Fails reproduces the exact V2 ensemble
+// bluff: an error-only assistant turn ("AI: [Error: ... all members failed]")
+// surrounded by static sidebar chrome MUST NOT count as a real reply. Before
+// the afterReplyMarker + stripChromeLines hardening, the ambient chrome prose
+// made this PASS — the analyzer self-bluff this guards (§11.4.107(10)).
+func TestReplyCheck_ErrorReplyWithChrome_Fails(t *testing.T) {
+	errReply := "> Do you see my codebase?\n" +
+		"AI: [Error: helix-agent ensemble: all 4 member(s) failed (first error: groq request failed)]\n" +
+		"Provider Status\nHealthy: 5\nUnhealthy: 0\nChat Statistics\nMessages: 1\n" +
+		"/help - Show help\n/clear - Clear chat\nWelcome to HelixCode AI Chat\n"
+	v := NewValidator(*logger.NewLogger(false))
+	rep := v.ValidateText(errReply, Options{
+		ExpectedPrompts:    []string{"Do you see my codebase?"},
+		MinReplyChars:      12,
+		ChromeLinePatterns: testChromePatterns(),
+	})
+	c := checkByName(rep, "prompt_1_has_reply")
+	if c == nil || c.Pass {
+		t.Fatalf("an error-only reply + chrome MUST NOT pass as a real reply; detail=%v", c)
+	}
+}
+
+// testChromePatterns are the consumer-supplied chrome patterns a chat-TUI caller
+// passes (the patterns live HERE / at the call site, NOT in Panoptic source —
+// CONST-051(B): no consumer UI strings in the reusable submodule).
+func testChromePatterns() []string {
+	return []string{
+		`^\s*/[a-z]+`,
+		`provider status|chat statistics|current model|available models`,
+		`healthy:|unhealthy:|total:|tokens used|messages:|llm info|select model`,
+		`press enter|welcome to|start a conversation|use the buttons|status:`,
+		`quick actions|recent activity|workers:|tasks:|system:`,
+	}
+}
+
+// TestReplyCheck_RealReplyAfterMarker_Passes is the golden-good partner: a real
+// prose answer after the AI: marker (with the same surrounding chrome) MUST
+// pass — proving the hardening rejects errors without rejecting real replies.
+func TestReplyCheck_RealReplyAfterMarker_Passes(t *testing.T) {
+	realReply := "> What is 2 plus 2?\n" +
+		"AI: 2 plus 2 equals 4. That is a basic arithmetic sum.\n" +
+		"Provider Status\nHealthy: 5\nUnhealthy: 0\nChat Statistics\nMessages: 1\n/help - Show help\n"
+	v := NewValidator(*logger.NewLogger(false))
+	rep := v.ValidateText(realReply, Options{ExpectedPrompts: []string{"What is 2 plus 2?"}, MinReplyChars: 12})
+	c := checkByName(rep, "prompt_1_has_reply")
+	if c == nil || !c.Pass {
+		t.Fatalf("a real prose reply after AI: MUST pass; detail=%v", c)
+	}
+}

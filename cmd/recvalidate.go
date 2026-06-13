@@ -39,20 +39,24 @@ func runRecValidate(cmd *cobra.Command, args []string) error {
 	keepFrames, _ := cmd.Flags().GetBool("keep-frames")
 	framesDir, _ := cmd.Flags().GetString("frames-dir")
 	extraTokens, _ := cmd.Flags().GetStringArray("error-token")
+	chromePatterns, _ := cmd.Flags().GetStringArray("chrome-pattern")
+	replyMarkers, _ := cmd.Flags().GetStringArray("reply-marker")
 	outPath, _ := cmd.Flags().GetString("json-out")
 
 	log := logger.NewLogger(viper.GetBool("verbose"))
 	v := recvalidate.NewValidator(*log)
 
 	rep, err := v.Validate(context.Background(), recvalidate.Options{
-		VideoPath:        video,
-		ExpectedPrompts:  prompts,
-		IntendedModel:    model,
-		ExtraErrorTokens: extraTokens,
-		FPS:              fps,
-		FrameDir:         framesDir,
-		KeepFrames:       keepFrames,
-		MinReplyChars:    minReply,
+		VideoPath:          video,
+		ExpectedPrompts:    prompts,
+		IntendedModel:      model,
+		ExtraErrorTokens:   extraTokens,
+		ChromeLinePatterns: chromePatterns,
+		ReplyMarkers:       replyMarkers,
+		FPS:                fps,
+		FrameDir:           framesDir,
+		KeepFrames:         keepFrames,
+		MinReplyChars:      minReply,
 	})
 	if err != nil {
 		return fmt.Errorf("validation failed to run: %w", err)
@@ -104,6 +108,8 @@ func init() {
 	recvalidateCmd.Flags().Bool("keep-frames", false, "retain extracted frames as evidence")
 	recvalidateCmd.Flags().String("frames-dir", "", "directory to write extracted frames (temp if omitted)")
 	recvalidateCmd.Flags().StringArray("error-token", nil, "extra case-insensitive error phrase to flag (repeatable)")
+	recvalidateCmd.Flags().StringArray("chrome-pattern", nil, "consumer-supplied case-insensitive regex matching ambient UI chrome lines to exclude from reply prose (repeatable)")
+	recvalidateCmd.Flags().StringArray("reply-marker", nil, "assistant-turn prefix marking a model reply, e.g. 'AI:' (repeatable; generic chat defaults when omitted)")
 	recvalidateCmd.Flags().String("json-out", "", "path to write the JSON report (stdout if omitted)")
 
 	rootCmd.AddCommand(recvalidateCmd)
