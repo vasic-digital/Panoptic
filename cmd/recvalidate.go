@@ -41,6 +41,7 @@ func runRecValidate(cmd *cobra.Command, args []string) error {
 	extraTokens, _ := cmd.Flags().GetStringArray("error-token")
 	chromePatterns, _ := cmd.Flags().GetStringArray("chrome-pattern")
 	replyMarkers, _ := cmd.Flags().GetStringArray("reply-marker")
+	errorScopeReplies, _ := cmd.Flags().GetBool("error-scope-replies")
 	outPath, _ := cmd.Flags().GetString("json-out")
 
 	log := logger.NewLogger(viper.GetBool("verbose"))
@@ -53,6 +54,7 @@ func runRecValidate(cmd *cobra.Command, args []string) error {
 		ExtraErrorTokens:   extraTokens,
 		ChromeLinePatterns: chromePatterns,
 		ReplyMarkers:       replyMarkers,
+		ErrorScopeReplies:  errorScopeReplies,
 		FPS:                fps,
 		FrameDir:           framesDir,
 		KeepFrames:         keepFrames,
@@ -110,6 +112,7 @@ func init() {
 	recvalidateCmd.Flags().StringArray("error-token", nil, "extra case-insensitive error phrase to flag (repeatable)")
 	recvalidateCmd.Flags().StringArray("chrome-pattern", nil, "consumer-supplied case-insensitive regex matching ambient UI chrome lines to exclude from reply prose (repeatable)")
 	recvalidateCmd.Flags().StringArray("reply-marker", nil, "assistant-turn prefix marking a model reply, e.g. 'AI:' (repeatable; generic chat defaults when omitted)")
+	recvalidateCmd.Flags().Bool("error-scope-replies", false, "restrict the built-in error/warning scan to assistant-reply regions only (ignore incidental terminal scrollback); default scans the whole frame")
 	recvalidateCmd.Flags().String("json-out", "", "path to write the JSON report (stdout if omitted)")
 
 	rootCmd.AddCommand(recvalidateCmd)

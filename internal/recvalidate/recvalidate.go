@@ -98,6 +98,21 @@ type Options struct {
 	// a consumer with a different convention overrides it. Matched
 	// case-insensitively.
 	ReplyMarkers []string
+	// ErrorScopeReplies, when true, restricts the built-in error/warning scan
+	// (the ErrorDetector classifier + chat error tokens) to the assistant-REPLY
+	// regions only (the text AFTER each ReplyMarker), instead of the whole frame.
+	//
+	// WHY (CONST-051(B) consumer choice): a recording often includes incidental
+	// terminal SCROLLBACK that pre-dates the session — startup warnings, a redis
+	// connection log, a stray JSON error payload — none of which mean the feature
+	// under test is broken. A bank that asserts STRUCTURAL on-screen presence
+	// (e.g. "the ensemble members panel rendered") legitimately must NOT FAIL
+	// because the operator's terminal printed a warning before the TUI launched.
+	// Reply-scoping flags errors the MODEL actually emitted while still ignoring
+	// ambient scrollback noise. DEFAULT is false (whole-frame scan, unchanged) —
+	// the consumer opts in; this never weakens the default behaviour. Genuine
+	// errors that appear inside an assistant reply still FAIL under either mode.
+	ErrorScopeReplies bool
 }
 
 // CheckResult is one assertion's verdict.
@@ -110,15 +125,15 @@ type CheckResult struct {
 
 // Report is the structured PASS/FAIL output of a validation run.
 type Report struct {
-	Pass            bool             `json:"pass"`
-	Skipped         bool             `json:"skipped"`
-	SkipReason      string           `json:"skip_reason,omitempty"`
-	VideoPath       string           `json:"video_path"`
-	FrameCount      int              `json:"frame_count"`
-	FramesDir       string           `json:"frames_dir,omitempty"`
-	AggregatedText  string           `json:"aggregated_text"`
-	Checks          []CheckResult    `json:"checks"`
-	DetectedErrors  []ai.DetectedError `json:"detected_errors,omitempty"`
+	Pass           bool               `json:"pass"`
+	Skipped        bool               `json:"skipped"`
+	SkipReason     string             `json:"skip_reason,omitempty"`
+	VideoPath      string             `json:"video_path"`
+	FrameCount     int                `json:"frame_count"`
+	FramesDir      string             `json:"frames_dir,omitempty"`
+	AggregatedText string             `json:"aggregated_text"`
+	Checks         []CheckResult      `json:"checks"`
+	DetectedErrors []ai.DetectedError `json:"detected_errors,omitempty"`
 }
 
 // Validator drives a recorded-video validation using the OCR engine and the
@@ -215,10 +230,23 @@ func (v *Validator) ValidateText(aggregated string, opts Options) *Report {
 func (r *Report) runChecks(v *Validator, aggregated string, opts Options) {
 	lower := strings.ToLower(aggregated)
 
+	replyMarkers := resolveReplyMarkers(opts.ReplyMarkers)
+
+	// The error scan operates on the whole frame by default, or — when the
+	// consumer opts into reply-scoping — only on the assistant-reply regions, so
+	// incidental terminal SCROLLBACK (pre-session startup warnings, redis/log
+	// noise) cannot false-FAIL a structural-presence bank (CONST-051(B) choice;
+	// genuine in-reply errors still FAIL under either mode).
+	errText := aggregated
+	if opts.ErrorScopeReplies {
+		errText = replyRegions(aggregated, replyMarkers)
+	}
+	errLower := strings.ToLower(errText)
+
 	// CHECK 1: No error/warning tokens on screen.
 	// 1a — reuse Panoptic's ErrorDetector (regex classifier) on the screen text.
 	detected := v.detector.DetectErrors([]ai.ErrorMessage{{
-		Message:   aggregated,
+		Message:   errText,
 		Source:    "recorded-video-ocr",
 		Timestamp: time.Now(),
 		Level:     "screen",
@@ -233,14 +261,14 @@ func (r *Report) runChecks(v *Validator, aggregated string, opts Options) {
 		if tok == "" {
 			continue
 		}
-		if strings.Contains(lower, strings.ToLower(tok)) {
+		if strings.Contains(errLower, strings.ToLower(tok)) {
 			hitTokens = append(hitTokens, tok)
 		}
 	}
 	// Provider health: flag ONLY a strictly-positive unhealthy count. The benign
 	// "Unhealthy: 0" healthy state must never trip this (a bare substring match
 	// would — the §11.4.107(10) analyzer self-bluff guarded here).
-	if m := nonzeroUnhealthyRe.FindString(aggregated); m != "" {
+	if m := nonzeroUnhealthyRe.FindString(errText); m != "" {
 		hitTokens = append(hitTokens, strings.TrimSpace(m))
 	}
 
@@ -269,7 +297,6 @@ func (r *Report) runChecks(v *Validator, aggregated string, opts Options) {
 	if minReply <= 0 {
 		minReply = 12
 	}
-	replyMarkers := resolveReplyMarkers(opts.ReplyMarkers)
 	chromeRes := compileChromePatterns(opts.ChromeLinePatterns)
 	for i, prompt := range opts.ExpectedPrompts {
 		ok, ev := promptHasReply(aggregated, prompt, minReply, errTokens, replyMarkers, chromeRes)
@@ -396,6 +423,43 @@ func compileChromePatterns(patterns []string) []*regexp.Regexp {
 		}
 	}
 	return out
+}
+
+// replyRegions returns the concatenation of every assistant-reply region in the
+// transcript — for each line that contains a reply marker, the text from the
+// marker to the end of that line. When NO marker is present anywhere, it returns
+// the whole text unchanged (so a marker-less recording still has its errors
+// scanned rather than silently ignored — fail-closed, never fail-open).
+//
+// This is the error-scan analogue of afterReplyMarker: it isolates what the
+// model actually emitted from ambient terminal scrollback so the reply-scoped
+// error check (Options.ErrorScopeReplies) does not trip on pre-session noise.
+func replyRegions(text string, markers []string) string {
+	var b strings.Builder
+	found := false
+	for _, line := range strings.Split(text, "\n") {
+		low := strings.ToLower(line)
+		best := -1
+		for _, m := range markers {
+			if idx := strings.Index(low, m); idx >= 0 {
+				end := idx + len(m)
+				if best < 0 || end < best {
+					best = end
+				}
+			}
+		}
+		if best >= 0 {
+			found = true
+			b.WriteString(line[best:])
+			b.WriteByte('\n')
+		}
+	}
+	if !found {
+		// No reply marker anywhere — fail-closed: scan the whole transcript so a
+		// marker-less UI's genuine errors are never silently skipped.
+		return text
+	}
+	return b.String()
 }
 
 // afterReplyMarker returns the text following the FIRST assistant-turn marker in

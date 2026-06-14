@@ -90,6 +90,21 @@ type FrameText struct {
 
 // OCRImage runs tesseract on a single image file and returns the recognised
 // text. Returns a wrapped ErrToolAbsent if tesseract is not installed.
+//
+// Light-on-dark robustness (the dark-theme TUI fix): tesseract is trained for
+// dark text on a light background. A light-on-dark frame (the common terminal
+// / TUI theme) OCRs to little-or-nothing — the feature is plainly visible to a
+// human yet "invisible" to the analyzer, a §11.4.107(10) analyzer-self-bluff.
+// To close that gap GENERICALLY (no consumer specifics, helps any dark-theme
+// UI per CONST-051(B)), OCRImage:
+//   - always OCRs the frame as-is (raw), AND
+//   - when the frame is predominantly DARK (detected via mean luma), ALSO OCRs
+//     an upscaled + grayscale + negated variant and UNIONS the recognised text.
+//
+// The union never LOSES text a light frame already yields (raw is always run),
+// and never FABRICATES text (a blank dark frame negates to a blank light frame
+// → still empty), so it cannot introduce a false-positive. The negate pass is
+// skipped entirely on light frames, so light-theme recordings pay no extra OCR.
 func (e *Engine) OCRImage(ctx context.Context, imagePath string) (string, error) {
 	tool := e.ocrToolName()
 	if _, err := exec.LookPath(tool); err != nil {
@@ -98,8 +113,27 @@ func (e *Engine) OCRImage(ctx context.Context, imagePath string) (string, error)
 	if _, err := os.Stat(imagePath); err != nil {
 		return "", fmt.Errorf("image not found: %s: %w", imagePath, err)
 	}
-	// `tesseract <img> stdout -l <lang>` prints recognised text to stdout.
-	cmd := exec.CommandContext(ctx, tool, imagePath, "stdout", "-l", e.lang())
+
+	rawText, rawErr := e.runTesseract(ctx, imagePath)
+	if rawErr != nil {
+		return "", rawErr
+	}
+
+	// Augment dark frames with a negated pass. If the frame-transform tool
+	// (ffmpeg) is unavailable, or the frame is not dark, the raw text stands —
+	// no fabrication, no hard failure (the transform is an enhancement, not a
+	// gate).
+	if e.frameIsDark(ctx, imagePath) {
+		if negText, ok := e.ocrNegated(ctx, imagePath); ok {
+			return unionText(rawText, negText), nil
+		}
+	}
+	return rawText, nil
+}
+
+// runTesseract runs `tesseract <img> stdout -l <lang>` and returns its text.
+func (e *Engine) runTesseract(ctx context.Context, imagePath string) (string, error) {
+	cmd := exec.CommandContext(ctx, e.ocrToolName(), imagePath, "stdout", "-l", e.lang())
 	out, err := cmd.Output()
 	if err != nil {
 		// tesseract exits non-zero on a genuinely unreadable/empty input on
@@ -111,6 +145,116 @@ func (e *Engine) OCRImage(ctx context.Context, imagePath string) (string, error)
 		return "", fmt.Errorf("tesseract failed on %s: %w", imagePath, err)
 	}
 	return string(out), nil
+}
+
+// darkLumaThreshold is the mean-luma (0..255) ceiling below which a frame is
+// treated as "predominantly dark" and given the negate pass. 96 (~37%) cleanly
+// separates the common dark TUI/terminal themes (typically <50) from light
+// themes (typically >180) with a wide safety margin.
+const darkLumaThreshold = 96.0
+
+// frameIsDark reports whether the frame's mean luma is below darkLumaThreshold,
+// using ffmpeg's signalstats (YAVG). When ffmpeg is unavailable or the probe
+// cannot be parsed, it returns false (raw OCR stands — no enhancement, but no
+// failure either).
+func (e *Engine) frameIsDark(ctx context.Context, imagePath string) bool {
+	tool := e.frameToolName()
+	if _, err := exec.LookPath(tool); err != nil {
+		return false
+	}
+	// signalstats prints "lavfi.signalstats.YAVG=<float>" to stderr via the
+	// metadata filter; route it to a null muxer so no file is produced.
+	cmd := exec.CommandContext(ctx, tool,
+		"-hide_banner",
+		"-i", imagePath,
+		"-vf", "signalstats,metadata=print:key=lavfi.signalstats.YAVG",
+		"-f", "null", "-",
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+	yavg, ok := parseYAVG(string(out))
+	if !ok {
+		return false
+	}
+	return yavg < darkLumaThreshold
+}
+
+// parseYAVG extracts the YAVG float from ffmpeg signalstats output.
+func parseYAVG(s string) (float64, bool) {
+	const key = "lavfi.signalstats.YAVG="
+	idx := strings.LastIndex(s, key)
+	if idx < 0 {
+		return 0, false
+	}
+	rest := s[idx+len(key):]
+	// Take the numeric run up to the first non-number character.
+	end := 0
+	for end < len(rest) {
+		c := rest[end]
+		if (c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+' {
+			end++
+			continue
+		}
+		break
+	}
+	v, err := strconv.ParseFloat(strings.TrimSpace(rest[:end]), 64)
+	if err != nil {
+		return 0, false
+	}
+	return v, true
+}
+
+// ocrNegated transcodes the frame through an upscale (3x) + grayscale + negate
+// filter into a temp PNG and OCRs it. Returns the recognised text and true on
+// success; ("", false) when the transform or OCR could not run (so the caller
+// falls back to the raw text — never a hard failure, never fabrication).
+func (e *Engine) ocrNegated(ctx context.Context, imagePath string) (string, bool) {
+	tool := e.frameToolName()
+	if _, err := exec.LookPath(tool); err != nil {
+		return "", false
+	}
+	tmpDir, err := os.MkdirTemp("", "panoptic-ocr-neg-")
+	if err != nil {
+		return "", false
+	}
+	defer os.RemoveAll(tmpDir)
+	out := filepath.Join(tmpDir, "negated.png")
+
+	cmd := exec.CommandContext(ctx, tool,
+		"-hide_banner", "-loglevel", "error",
+		"-i", imagePath,
+		"-vf", "scale=iw*3:ih*3:flags=lanczos,format=gray,negate",
+		out, "-y",
+	)
+	if err := cmd.Run(); err != nil {
+		return "", false
+	}
+	if fi, statErr := os.Stat(out); statErr != nil || fi.Size() == 0 {
+		return "", false
+	}
+	text, ocrErr := e.runTesseract(ctx, out)
+	if ocrErr != nil {
+		return "", false
+	}
+	return text, true
+}
+
+// unionText concatenates two OCR passes' text so a marker readable in EITHER
+// pass is present in the result. A trailing newline separates them so line-
+// oriented consumers (AggregateText) see both passes' lines.
+func unionText(a, b string) string {
+	a = strings.TrimRight(a, "\n")
+	b = strings.TrimRight(b, "\n")
+	switch {
+	case a == "":
+		return b
+	case b == "":
+		return a
+	default:
+		return a + "\n" + b
+	}
 }
 
 // ExtractFrames pulls representative frames from a video into outDir using
