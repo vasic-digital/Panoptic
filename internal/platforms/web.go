@@ -110,7 +110,7 @@ func (w *WebPlatform) Click(selector string) error {
 		w.metrics["click_actions"] = append(clickActions, selector)
 	}
 
-	element, err := w.page.Element(selector)
+	element, err := w.elementLookupPage().Element(selector)
 	if err != nil {
 		return fmt.Errorf("failed to find element %s: %w", selector, err)
 	}
@@ -329,6 +329,38 @@ func (w *WebPlatform) GenerateVisionReport(outputPath string) error {
 	return w.vision.GenerateVisualReport(elements, outputPath)
 }
 
+// elementLookupPage returns a clone of the page whose element-resolution
+// retries are bounded by a finite timeout. go-rod's Page.Element retries
+// indefinitely (against the page's default context) when a selector matches
+// no element — so without a bound, Fill/Click/Submit against a missing
+// selector block until the surrounding test/binary timeout instead of
+// returning the documented "failed to find element" error. Binding a
+// per-lookup timeout makes the missing-element case return a real error,
+// honoring the contract the tests assert. The bound derives from the
+// Initialize-configured context deadline when available, capped so a
+// generous app timeout can't reintroduce a multi-minute stall on a lookup;
+// it falls back to a sane default when no deadline was configured.
+func (w *WebPlatform) elementLookupPage() *rod.Page {
+	const (
+		defaultLookupTimeout = 15 * time.Second
+		maxLookupTimeout     = 30 * time.Second
+	)
+
+	timeout := defaultLookupTimeout
+	if w.context != nil {
+		if deadline, ok := w.context.Deadline(); ok {
+			if remaining := time.Until(deadline); remaining > 0 && remaining < timeout {
+				timeout = remaining
+			}
+		}
+	}
+	if timeout > maxLookupTimeout {
+		timeout = maxLookupTimeout
+	}
+
+	return w.page.Timeout(timeout)
+}
+
 func (w *WebPlatform) Fill(selector, value string) error {
 	// Input validation
 	if selector == "" {
@@ -340,12 +372,12 @@ func (w *WebPlatform) Fill(selector, value string) error {
 	if w.page == nil {
 		return fmt.Errorf("web page not initialized")
 	}
-	
-	element, err := w.page.Element(selector)
+
+	element, err := w.elementLookupPage().Element(selector)
 	if err != nil {
 		return fmt.Errorf("failed to find element %s: %w", selector, err)
 	}
-	
+
 	if err := element.Input(value); err != nil {
 		return fmt.Errorf("failed to fill element %s: %w", selector, err)
 	}
@@ -370,7 +402,7 @@ func (w *WebPlatform) Submit(selector string) error {
 	// Find the form or use click on submit button
 	if selector == "" {
 		// Try to find submit button
-		element, err := w.page.Element("input[type='submit'], button[type='submit']")
+		element, err := w.elementLookupPage().Element("input[type='submit'], button[type='submit']")
 		if err != nil {
 			return fmt.Errorf("failed to find submit button: %w", err)
 		}
@@ -378,7 +410,7 @@ func (w *WebPlatform) Submit(selector string) error {
 			return fmt.Errorf("failed to click submit button: %w", err)
 		}
 	} else {
-		element, err := w.page.Element(selector)
+		element, err := w.elementLookupPage().Element(selector)
 		if err != nil {
 			return fmt.Errorf("failed to find submit element %s: %w", selector, err)
 		}

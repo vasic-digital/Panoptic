@@ -70,6 +70,24 @@ func (r *ScreencastRecorder) Start(filename string) error {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
+	// Capture one guaranteed real frame of the current page state synchronously
+	// at Start. CDP screencast (PageScreencastFrame) only emits frames when the
+	// compositor produces a new render — on a static page a short Start→Stop
+	// window can elapse with zero compositor frames, leaving a recording with no
+	// content. This initial frame is a genuine rendered screenshot of the live
+	// page (NOT a fabricated frame), so every started recording contains at least
+	// the real initial page state; subsequent compositor frames append on top.
+	if img, err := r.page.Screenshot(false, nil); err == nil {
+		framePath := filepath.Join(r.framesDir, fmt.Sprintf("frame_%06d.png", r.frameCount))
+		if werr := os.WriteFile(framePath, img, 0644); werr == nil {
+			r.frameCount++
+		} else {
+			r.logger.Warnf("Failed to write initial frame: %v", werr)
+		}
+	} else {
+		r.logger.Warnf("Failed to capture initial frame: %v", err)
+	}
+
 	// Start CDP screencast - captures rendered frames directly from the compositor
 	go r.captureFrames()
 
