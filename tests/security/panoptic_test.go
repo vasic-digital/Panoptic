@@ -4,6 +4,8 @@
 package security
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -169,7 +171,7 @@ actions:
 		outputStr := stdout.String()
 		errorStr := stderr.String()
 
-		t.Logf("File security test output: %s", outputStr)
+		t.Logf("File security test output: %s (run err: %v)", outputStr, err)
 		t.Logf("File security test error: %s", errorStr)
 
 		// Verify no unauthorized file access
@@ -209,7 +211,7 @@ actions:
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
 
-		err := cmd.Run()
+		_ = cmd.Run()
 		outputStr := stdout.String()
 		errorStr := stderr.String()
 
@@ -392,7 +394,7 @@ actions:
 		cmd.Stderr = &stderr
 
 		start := time.Now()
-		err := cmd.Run()
+		_ = cmd.Run()
 		duration := time.Since(start)
 
 		t.Logf("Memory exhaustion test duration: %v", duration)
@@ -486,7 +488,7 @@ actions:
 		cmd := exec.CommandContext(ctx, "./panoptic", "run", configFile, "--output", outputDir, "--verbose")
 		cmd.Dir = getProjectRoot()
 
-		err := cmd.Run()
+		_ = cmd.Run()
 		
 		// Check log files for data leakage
 		logsDir := filepath.Join(outputDir, "logs")

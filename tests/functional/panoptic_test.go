@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -233,8 +232,9 @@ settings:
 			logContent := string(content)
 			
 			// Should contain test execution logs
-			assert.Contains(t, logContent, "Functional Web Form Test") || 
-					  assert.Contains(t, logContent, "Test Web App")
+			assert.True(t, strings.Contains(logContent, "Functional Web Form Test") ||
+				strings.Contains(logContent, "Test Web App"),
+				"log should contain a functional-test marker")
 		}
 	}
 
@@ -412,7 +412,7 @@ settings:
 	outputStr := stdout.String()
 	errorStr := stderr.String()
 
-	t.Logf("Real-world test duration: %v", duration)
+	t.Logf("Real-world test duration: %v (run err: %v)", duration, err)
 	t.Logf("Real-world test stdout: %s", outputStr)
 	t.Logf("Real-world test stderr: %s", errorStr)
 

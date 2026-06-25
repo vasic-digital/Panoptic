@@ -374,8 +374,10 @@ actions:
 		// Check for basic report structure
 		assert.Contains(t, reportStr, "Panoptic Test Report")
 		assert.Contains(t, reportStr, "Test Report")
-		// Report contains total tests count
-		assert.Contains(t, reportStr, "Total Tests:")
+		// Report contains a summary total marker (report.go emits "Total Apps";
+		// the legacy executor.go path emits "Total Tests:") — accept either.
+		assert.True(t, strings.Contains(reportStr, "Total Apps") || strings.Contains(reportStr, "Total Tests:"),
+			"report should contain a summary total marker")
 	} else {
 		t.Logf("Report not generated (expected if tests failed): %s", outputStr)
 	}

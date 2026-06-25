@@ -173,7 +173,8 @@ settings:
 			reportStr := string(reportContent)
 			assert.Contains(t, reportStr, "Panoptic Test Report")
 			assert.Contains(t, reportStr, "Test Report")
-			assert.Contains(t, reportStr, "Total Tests:")
+			assert.True(t, strings.Contains(reportStr, "Total Apps") || strings.Contains(reportStr, "Total Tests:"),
+				"report should contain a summary total marker")
 		} else {
 			t.Logf("HTML report not generated (expected if tests failed)")
 		}
